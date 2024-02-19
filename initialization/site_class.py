@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
-from parameters import GlobalParameters
-from input_data import InputData
+import initialization.parameters as parameters
+from initialization.input_data import InputData
 
 
 class Site:
@@ -25,8 +25,6 @@ class Site:
     TGC_array = None                                        #An array containing the growth coefficients for a given smolt type
     scenario_temps = None                                   #An array containing the temperatures for all possible scenarios
 
-
-
     def __init__(self,
                  scenario_temperatures,
                  MAB_capacity,
@@ -35,8 +33,6 @@ class Site:
                  init_avg_weight = 0,
                  init_biomass_months_deployed=0,
                  ):
-        #Setting instance of parameters
-        self.parameters = GlobalParameters()
 
         #Setting class variables
         self.TGC_array = InputData().TGC_df.iloc[0]                                               #Array of all TGC for a possible deploy period
@@ -44,7 +40,7 @@ class Site:
         self.init_biomass = init_biomass                                          #Initial biomass at the site, i.e biomass in the first period
         self.init_avg_weight = init_avg_weight
         self.num_months_deployed = init_biomass_months_deployed
-        self.smolt_weights = self.parameters.smolt_weights                                      #Array of possible smolt weights
+        self.smolt_weights = parameters.smolt_weights                                      #Array of possible smolt weights
         self.scenario_temps = scenario_temperatures                               #Array of scenario temperatures for the site
         self.max_periods_deployed = len(self.TGC_array)                                #The maximum number of periods a cohort can be deployed
         self.name = site_name                                                     #The name of the site
@@ -57,7 +53,7 @@ class Site:
         self.weight_dev_per_scenario_df = self.calculate_weight_df_for_scenarios_and_smolt_weights(self.smolt_weights, scenario_temperatures)
 
         #Calculating the growth sets
-        self.growth_sets = self.calculate_growth_sets_from_weight_dev_df(self.weight_dev_per_scenario_df, self.parameters.weight_req_for_harvest)
+        self.growth_sets = self.calculate_growth_sets_from_weight_dev_df(self.weight_dev_per_scenario_df, parameters.weight_req_for_harvest)
 
 
     def calculate_growth_sets_from_weight_dev_df(self, weight_development_df, weight_req_for_harvest):
@@ -249,9 +245,6 @@ class Site:
 
         # Read data from array into dataframe
         weight_df = pd.DataFrame(weight_array, columns=[i for i in range(number_periods)], index=[i for i in range(number_periods)])
-
-
-
 
         return weight_df
 

@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-
+import configs
 
 class InputData:
     """
@@ -10,13 +10,21 @@ class InputData:
     temperatures_df = None
     TGC_df = None
     mortality_rates_df = None
+    
+    #Variables to be read
+    scenario_temperatures_per_site_df = None
 
+    #Variables to be input here:
+    scenarios_variations = configs.SCENARIOS_VARIATIONS
+    scenario_probabilities = configs.SCENARIO_PROBABILITIES
+    num_scenarios = len(scenarios_variations)
+        
     def __init__(self):
         #This is constructor function, it reads in data to the variables by calling the read methods
         self.temperatures_df = self.read_input_temperatures("./data/temps_aasen.txt")
         self.TGC_df = self.read_input_tgc("./data/tgc_aasen.txt")
         self.mortality_rates_df = self.read_input_mortality_rates("./data/mortality_aasen_new.txt")
-
+        self.scenario_temperatures_per_site_df = self.generate_scenarios_df(self.temperatures_df)
     """
     Defining all methods for reading in data from files. Due to the data files being of different format a method is created for every file. 
     """
@@ -78,8 +86,6 @@ class InputData:
         :param filepath: The filepath to a txt file, conaining mortality rate data
         :return: df - a pandas dataframe contraining mortality rates for all smolt types
         """
-
-
         #Read data from file
         file = open(filepath, "r")
         data = file.readlines()
@@ -98,7 +104,34 @@ class InputData:
         df = df.map(lambda x: float(x) if isinstance(x, str) else x)
         return df
 
+    def generate_scenarios_df(self, base_temperature_df):
+        """
+        This function takes as an input the observed temperatures at all locations, and generates possible scenarios for every site based on the scenario variations input.
+        It then returns the calculated scenarios in a pandas multi index dataframe.
 
+        :param base_temperature_df: A dataframe containing the observed temperatures for 1 year at each site for the company
+        :return: scenario_temperatures_per_site_df - a multi-index dataframe containing temperatures for every scenario that is generated
+        """
+        #Declaring variables for code to be more readable
+        scenario_temperatures = []                              #A list for containing dataframes of scenario temperatures for each site, later to be put into the concatenated dataframe
+        sites = base_temperature_df.index                       #A list containing the name of all sites, later to be used as indexes for the concatenated dataframe
+
+        #Iterating through all sites
+        for i in range(sites.size):
+            #Generating a Dataframe containing all scenario temperatures for that site
+            site_df = pd.DataFrame([base_temperature_df.iloc[i] * self.scenarios_variations[j] for j in range(self.num_scenarios)], index=[f"Scenario {j}" for j in range(self.num_scenarios)])
+            #Appending the site with scenario temperatures to the list storig thedataframes
+            scenario_temperatures.append(site_df)
+
+        #Concatinating the dataframes for all sites into on multiindex dataframe
+        scenario_temperatures_per_site_df = pd.concat([df for df in scenario_temperatures], keys=sites)
+
+        return scenario_temperatures_per_site_df
+
+if __name__ == '__main__':
+    input_data = InputData()
+    scenarios_temperatures = input_data.scenario_temperatures_per_site_df
+    scenarios_temperatures.to_excel("scenarios_temperatures.xlsx")
 
 
 

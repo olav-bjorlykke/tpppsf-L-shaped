@@ -1,25 +1,53 @@
 import numpy as np
 import pandas as pd
-from input_data import InputData
-from site_class import Site
-from scenarios import Scenarios
+import initialization.configs as configs
+from initialization.input_data import InputData
+from initialization.site_class import Site
 from model import Model
-import configs
 
+
+'''
+DECLARING GLOBAL PARAMETERS
+'''
+smolt_deployment_upper_bound = 100000 #Upper bound for biomass of smolt deployed in kilo
+smolt_deployment_lower_bound = 10 #Lower bound of smolt deployed
+max_harvest = 4000 * 1000 #Max biomass that can be harvested in any period in tons
+min_harvest = 250 * 1000 #Minimum amount of biomass that can be harvested if biomass is harvested in tons
+max_harvest_company = 6000 * 1000 #Max biomass that can be havested across the company in tons, currently unlimited
+expected_production_loss = 0.002 #Expected loss per period
+MAB_company_limit = configs.MAB_COMPANY_LIMIT #Max biomass deployed across the company
+MAB_site_limit = 3000 * 1000 #TODO: This is a placeholder, get the real thing from the site datastructure
+smolt_type_df = pd.DataFrame( #All possible smolt type and weights, with corresponding number of smolt per kilo
+    data=[[100,10],[150,6.66],[250,4]],
+    columns=["weight","num-smolt-kilo"]
+)
+smolt_weights = [100,250]
+min_fallowing_periods = 2
+max_fallowing_periods = 36
+max_periods_deployed = 24
+number_periods = 60
+temp_growth_period = 6 #TODO: implement this stochastically
+bigM = 100000000
+weight_req_for_harvest = 3000.0
+scenario_probabilities = [0.1, 0.8, 0.1]
+eoh_down_ratio = 0.6
+eoh_up_ratio = 1.4
+MAB_util_end = 0.3
+
+
+"""
+DECLARING THE PARAMETERS FOR ALL SITES
+"""
 #Fetching temperature data from det dataclasses
 input_data =InputData()
-scenarios_data = Scenarios(input_data.temperatures_df)
 
 #Declaring the string variables for each area here to avoid errors and duplication of efforts
 area_vesteralen_string = "Vesteralen"
 area_nordtroms_string = "Nord-Troms"
 area_senja_string = "Senja"
 
-"""
-DECLARING THE PARAMETERS FOR ALL SITES
-"""
 site_1 = Site(
-    scenario_temperatures=scenarios_data.scenario_temperatures_per_site_df.loc[area_vesteralen_string],
+    scenario_temperatures=input_data.scenario_temperatures_per_site_df.loc[area_vesteralen_string],
     MAB_capacity=3120 * 1000,
     init_biomass=907 * 1000,
     init_avg_weight=2410,
@@ -28,13 +56,13 @@ site_1 = Site(
 )
 
 site_2 = Site(
-    scenario_temperatures=scenarios_data.scenario_temperatures_per_site_df.loc[area_vesteralen_string],
+    scenario_temperatures=input_data.scenario_temperatures_per_site_df.loc[area_vesteralen_string],
     MAB_capacity=2340 * 1000,
     site_name="SANDAN SØ"
 )
 
 site_3 = Site(
-    scenario_temperatures=scenarios_data.scenario_temperatures_per_site_df.loc[area_vesteralen_string],
+    scenario_temperatures=input_data.scenario_temperatures_per_site_df.loc[area_vesteralen_string],
     MAB_capacity=3120*1000,
     init_biomass=378 * 1000,
     init_avg_weight=695,
@@ -43,13 +71,13 @@ site_3 = Site(
 )
 
 site_4 = Site(
-    scenario_temperatures=scenarios_data.scenario_temperatures_per_site_df.loc[area_vesteralen_string],
+    scenario_temperatures=input_data.scenario_temperatures_per_site_df.loc[area_vesteralen_string],
     MAB_capacity=3120*1000,
     site_name="KUNESET"
 )
 
 site_5 = Site(
-    scenario_temperatures=scenarios_data.scenario_temperatures_per_site_df.loc[area_vesteralen_string],
+    scenario_temperatures=input_data.scenario_temperatures_per_site_df.loc[area_vesteralen_string],
     MAB_capacity=3120*1000,
     init_biomass=661 * 1000,
     init_avg_weight=1634,
@@ -57,17 +85,17 @@ site_5 = Site(
     site_name="STRETARNESET"
 )
 site_6 = Site(
-    scenario_temperatures=scenarios_data.scenario_temperatures_per_site_df.loc[area_vesteralen_string],
+    scenario_temperatures=input_data.scenario_temperatures_per_site_df.loc[area_vesteralen_string],
     MAB_capacity=3120*1000,
     site_name="DALJORDA"
 )
 site_7 = Site(
-    scenario_temperatures=scenarios_data.scenario_temperatures_per_site_df.loc[area_vesteralen_string],
+    scenario_temperatures=input_data.scenario_temperatures_per_site_df.loc[area_vesteralen_string],
     MAB_capacity=5500*1000,
     site_name="REINSNESØYA"
 )
 site_8 = Site(
-    scenario_temperatures=scenarios_data.scenario_temperatures_per_site_df.loc[area_vesteralen_string],
+    scenario_temperatures=input_data.scenario_temperatures_per_site_df.loc[area_vesteralen_string],
     MAB_capacity=3120*1000,
     init_biomass=661 * 1000,
     init_avg_weight=1634,
@@ -75,12 +103,12 @@ site_8 = Site(
     site_name="LANGHOLMEN N"
 )
 site_9 = Site(
-    scenario_temperatures=scenarios_data.scenario_temperatures_per_site_df.loc[area_vesteralen_string],
+    scenario_temperatures=input_data.scenario_temperatures_per_site_df.loc[area_vesteralen_string],
     MAB_capacity=3900*1000,
     site_name="BREMNESØYA"
 )
 site_10 = Site(
-    scenario_temperatures=scenarios_data.scenario_temperatures_per_site_df.loc[area_vesteralen_string],
+    scenario_temperatures=input_data.scenario_temperatures_per_site_df.loc[area_vesteralen_string],
     MAB_capacity=2340*1000,
     init_biomass=1312 * 1000,
     init_avg_weight=2458,
@@ -88,7 +116,7 @@ site_10 = Site(
     site_name="HOLAND"
 )
 site_11 = Site(
-    scenario_temperatures=scenarios_data.scenario_temperatures_per_site_df.loc[area_senja_string],
+    scenario_temperatures=input_data.scenario_temperatures_per_site_df.loc[area_senja_string],
     MAB_capacity=4680*1000,
     init_biomass=4296 * 1000,
     init_avg_weight=5464,
@@ -97,7 +125,7 @@ site_11 = Site(
 )
 
 site_12 = Site(
-    scenario_temperatures=scenarios_data.scenario_temperatures_per_site_df.loc[area_senja_string],
+    scenario_temperatures=input_data.scenario_temperatures_per_site_df.loc[area_senja_string],
     MAB_capacity=3600*1000,
     init_biomass=3536 * 1000,
     init_avg_weight=6536,
@@ -105,17 +133,17 @@ site_12 = Site(
     site_name="FLESEN"
 )
 site_13 = Site(
-    scenario_temperatures=scenarios_data.scenario_temperatures_per_site_df.loc[area_senja_string],
+    scenario_temperatures=input_data.scenario_temperatures_per_site_df.loc[area_senja_string],
     MAB_capacity=3900*1000,
     site_name="KVENBUKTA V"
 )
 site_14 = Site(
-    scenario_temperatures=scenarios_data.scenario_temperatures_per_site_df.loc[area_nordtroms_string],
+    scenario_temperatures=input_data.scenario_temperatures_per_site_df.loc[area_nordtroms_string],
     MAB_capacity=3600*1000,
     site_name="HAGEBERGAN"
 )
 site_15 = Site(
-    scenario_temperatures=scenarios_data.scenario_temperatures_per_site_df.loc[area_nordtroms_string],
+    scenario_temperatures=input_data.scenario_temperatures_per_site_df.loc[area_nordtroms_string],
     MAB_capacity=3500*1000,
     init_biomass=961 * 1000,
     init_avg_weight=1411,
@@ -123,7 +151,7 @@ site_15 = Site(
     site_name="RUSSELVA"
 )
 site_16 = Site(
-    scenario_temperatures=scenarios_data.scenario_temperatures_per_site_df.loc[area_nordtroms_string],
+    scenario_temperatures=input_data.scenario_temperatures_per_site_df.loc[area_nordtroms_string],
     MAB_capacity=5000*1000,
     site_name="HAUKØYA Ø",
 )
