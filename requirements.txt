@@ -1,7 +1,6 @@
 # This file may be used to create an environment using:
 # $ conda create --name <env> --file <this file>
 # platform: osx-arm64
-# test
 aiofiles=22.1.0=py311hca03da5_0
 aiosqlite=0.18.0=py311hca03da5_0
 anyio=3.5.0=py311hca03da5_0
