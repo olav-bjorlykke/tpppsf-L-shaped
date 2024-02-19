@@ -98,7 +98,6 @@ class InputData:
         df = df.map(lambda x: float(x) if isinstance(x, str) else x)
         return df
 
-    #TODO: create scenario temperatur dataframes here instead of in Scenario -> Delete scenarios
 
 
 
