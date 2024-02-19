@@ -1,4 +1,5 @@
 import os
+
 def set_instance():
     instance = int(input("Set the instance 0 = small, 1 = medium, 2 = large: "))
     return instance
