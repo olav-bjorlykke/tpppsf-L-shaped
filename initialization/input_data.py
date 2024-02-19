@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-import configs
+import initialization.configs as configs
 
 class InputData:
     """
@@ -21,9 +21,9 @@ class InputData:
         
     def __init__(self):
         #This is constructor function, it reads in data to the variables by calling the read methods
-        self.temperatures_df = self.read_input_temperatures("./data/temps_aasen.txt")
-        self.TGC_df = self.read_input_tgc("./data/tgc_aasen.txt")
-        self.mortality_rates_df = self.read_input_mortality_rates("./data/mortality_aasen_new.txt")
+        self.temperatures_df = self.read_input_temperatures("data/temps_aasen.txt")
+        self.TGC_df = self.read_input_tgc("data/tgc_aasen.txt")
+        self.mortality_rates_df = self.read_input_mortality_rates("data/mortality_aasen_new.txt")
         self.scenario_temperatures_per_site_df = self.generate_scenarios_df(self.temperatures_df)
     """
     Defining all methods for reading in data from files. Due to the data files being of different format a method is created for every file. 
