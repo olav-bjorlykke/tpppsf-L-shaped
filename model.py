@@ -2,13 +2,13 @@ import gurobipy as gp
 import pandas as pd
 from gurobipy import GRB
 import numpy as np
-from parameters import GlobalParameters
-from input_data import InputData
-from site_class import Site
-from scenarios import Scenarios
+import initialization.parameters
+from initialization.input_data import InputData
+from initialization.site_class import Site
 import matplotlib.pyplot as plt
-import configs
+import initialization.configs as configs
 import time
+
 
 class Model:
     iterations = 0
@@ -20,12 +20,15 @@ class Model:
     def __init__(self,
                  site_objects,
                  MAB_shadow_prices_df = pd.DataFrame(),
-                 EOH_shadow_prices_df = pd.DataFrame()
+                 EOH_shadow_prices_df = pd.DataFrame(),
+                 input_data = InputData(),
+                 parameters = initialization.parameters,
+                 scenario_probabilities = initialization.configs.SCENARIO_PROBABILITIES
                  ):
         #Imported classes, containing parameters and data
-        self.input_data = InputData()
-        self.parameters = GlobalParameters()
-        self.scenario = Scenarios(self.input_data.temperatures_df)
+        self.input_data = input_data
+        self.parameters = parameters
+        self.scenario_probabilities = scenario_probabilities
 
         if isinstance(site_objects,list):
             self.sites = site_objects
@@ -36,7 +39,7 @@ class Model:
         #Setting variables to contain the size of sets
         self.f_size = 1  #TODO: declare using the smolt set
         self.t_size = self.parameters.number_periods
-        self.s_size = configs.NUM_SCENARIOS  #TODO: len(parameters.scenario_probabilities)
+        self.s_size = initialization.configs.NUM_SCENARIOS  #TODO: len(parameters.scenario_probabilities)
         self.l_size = len(self.sites)
 
         #Defining some variables from the data objects for easier reference
@@ -52,6 +55,9 @@ class Model:
         self.branching_variable_indices_down = []
 
 
+    """
+    Solver functions
+    """
     def solve_and_print_model(self):
         self.model = gp.Model(f"Single site solution")
 
@@ -100,6 +106,7 @@ class Model:
         self.set_decomped_objective()
 
         # Adding constraints
+        #TODO: Give the constraints numbers
         self.add_smolt_deployment_constraints()
         self.add_fallowing_constraints()
         self.add_inactivity_constraints()
@@ -108,11 +115,9 @@ class Model:
         self.add_MAB_requirement_constraint()
         self.add_initial_condition_constraint()
         self.add_forcing_constraints()
-        #TODO: Explain why these are commented out
 
-        # self.add_MAB_company_requirement_constraint()
-        # self.add_end_of_horizon_constraint()
-        # self.add_x_forcing_constraint()
+        #Note that MAB constraint and end of horizon constraints are not added here.
+
         self.add_up_branching_constraints()
         self.add_down_branching_constraints()
 
@@ -122,13 +127,9 @@ class Model:
         if self.model.status != GRB.INFEASIBLE:
             self.plot_solutions_x_values_per_site()
 
-        end_time = time.perf_counter()
-        time_to_run_master = end_time - start_time
-        print(f"#### time to run: {time_to_run_master}")
-        print(f"{self.time_in_subproblem}")
-        self.time_in_subproblem += time_to_run_master
-        print(f"{self.time_in_subproblem}")
-
+    """
+    Function for creating initial columns
+    """
 
     def create_initial_columns(self):
         self.model = gp.Model(f"Find feasible solution")
@@ -171,7 +172,9 @@ class Model:
         else:
             return None
 
-
+    """
+    Declaring variables and sets
+    """
 
     def declare_variables(self):
         self.x = self.model.addVars(self.l_size, self.f_size, self.t_size, self.t_size +1, self.s_size, vtype=GRB.CONTINUOUS, lb=0, name="X")
@@ -184,11 +187,15 @@ class Model:
         self.harvest_bin = self.model.addVars(self.l_size, self.t_size, self.s_size, vtype=GRB.BINARY)
         self.employ_bin = self.model.addVars(self.l_size, self.t_size, self.s_size, vtype=GRB.BINARY)
 
+    """
+    Objective setter functions
+    """
+
     def set_objective(self):
         #FIXED
         self.model.setObjective(  # This is the objective (5.2) - which represents the objective for biomass maximization
             gp.quicksum(
-                self.scenario.scenario_probabilities[s] *
+                self.scenario_probabilities[s] *
                 gp.quicksum(
                     self.w[l, f, t_hat, t, s]
                     for l in range(self.l_size)
@@ -207,7 +214,7 @@ class Model:
             self.model.setObjective(
                 # This is the objective (5.2) - which represents the objective for biomass maximization
                 gp.quicksum(
-                    self.scenario.scenario_probabilities[s] * (
+                    self.scenario_probabilities[s] * (
                     gp.quicksum(
                         self.w[l, f, t_hat, t, s] - #TODO: This was just changed to a +, check if it should be a -
                         self.x[l, f, t_hat, t, s] * self.MAB_shadow_prices_df.loc[(s, t)] if (s,t) in self.MAB_shadow_prices_df.index else 0.0
@@ -233,23 +240,16 @@ class Model:
             self.set_objective()
 
     def set_zero_ojective(self):
-        self.model.setObjective(
-            # This is the objective (5.2) - which represents the objective for biomass maximization
-            gp.quicksum(
-                self.scenario.scenario_probabilities[s] *
-                gp.quicksum(
-                    self.w[f, t_hat, t, s]
-                    for f in range(self.f_size)
-                    for t_hat in range(self.t_size)
-                    for t in range(min(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {s}")][t_hat], self.t_size - 1),
-                           min(t_hat + self.parameters.max_periods_deployed, self.t_size - 1))
-                )
-                for s in range(self.s_size)
-            )
-            , GRB.MINIMIZE
-        )
+        """
+        This function can be implemented to create a zero column, to initialize the master problem with.
+        :return:
+        """
+        pass
 
 
+    """
+    Constraints
+    """
     def add_smolt_deployment_constraints(self):
         #FIXED
         self.model.addConstrs(
@@ -319,7 +319,6 @@ class Model:
                     for f in range(self.f_size)
                 )
 
-
     def add_fallowing_constraints(self):
         #Fixed
         self.model.addConstrs(
@@ -371,8 +370,6 @@ class Model:
             for l in range(self.l_size)
         )
 
-
-
     def add_biomass_development_constraints(self):
         self.model.addConstrs(  # This is constraint (5.9) - which ensures that biomass x = biomass deployed y
             self.x[l, f, t, t, s] == self.y[l,f, t]
@@ -417,7 +414,6 @@ class Model:
             for t in range(t_hat, min(t_hat + self.parameters.max_periods_deployed, self.t_size))
         )
 
-    #Fixed
     def add_MAB_requirement_constraint(self):
         self.model.addConstrs(
             gp.quicksum(self.x[l, f, t_hat, t, s] for f in range(self.f_size)) <= self.sites[l].MAB_capacity
@@ -468,6 +464,11 @@ class Model:
                     name="Initial Condition bin"
                 )
 
+
+    """
+    Forcing and branching constraints
+    """
+
     def add_forcing_constraints(self):
         self.model.addConstrs(
             # TODO:This is a forcing constraint that is not in the mathematical model, put it in the model somehow
@@ -505,13 +506,16 @@ class Model:
                 name = "Branching constraint"
             )
 
-
     def add_down_branching_constraints(self):
         for indice in self.branching_variable_indices_down:
             self.model.addConstr(
                 self.deploy_bin[0, indice] == 0, #l set to 0 as this should only be used when there is only one site
                 name = "Branching constraint"
             )
+
+    """
+    Printing and exporting functions
+    """
 
     def print_solution_to_excel(self):
         if self.model.status != GRB.INFEASIBLE:
@@ -541,6 +545,9 @@ class Model:
         return df
 
 
+    """
+    Plot functions
+    """
     def plot_solutions_x_values_per_site(self):
         """
         EXPLANATION: This function plots the x values, i.e the biomass at the location for every period in the planning horizion
@@ -578,8 +585,8 @@ class Model:
             plt.title(f"Biomass at site {self.sites[l].name} iteration {self.iterations}")
             plt.ylabel("Biomass")
             plt.xlabel("Periods")
-            path = f'results/plots/{self.sites[l].name}{self.iterations}.png'
-            plt.savefig(path)
+            #path = f'results/plots/{self.sites[l].name}{self.iterations}.png'
+            #plt.savefig(path)
 
             plt.show()
             plt.clf()
@@ -670,6 +677,10 @@ class Model:
 
         plt.show()
 
+    """
+    Get solution functions
+    """
+
     def get_deploy_period_list(self):
         deploy_periods_list = []
         for l in range(self.l_size):
@@ -747,6 +758,9 @@ class Model:
         return deploy_period_dfs
 
 
+    """
+    Setter functions and writer functions
+    """
     def set_shadow_prices_df(self, shadow_prices_df_mab, shadow_prices_df_EOH):
         self.MAB_shadow_prices_df = shadow_prices_df_mab
         self.EOH_shadow_prices_df = shadow_prices_df_EOH
