@@ -38,7 +38,7 @@ def add_vehicle_capacity_constraint_1(model, x, y, n, q, Q):
         for i in range(n+1)
         for j in range(n+1)
     )
-    pass
+
 
 def add_vehicle_capacity_constraint_2(model, y, n, d, Q):
     model.addConstrs(
@@ -56,17 +56,14 @@ def write_solving_time_to_file(description, solving_time,):
         file.write(solving_time)
         file.write('\n')
 
-def run_model(iter):
+def run_model(c, q, n):
     model = gp.Model("vrp-model")
     model.setParam("OutputFlag", 0)
     # Setting sets
-    n = 15
-    c = np.random.uniform(low=1, high=10, size=(n, n + 1))
-    q = np.random.uniform(low=0, high=100, size=(n + 1))
     q[0] = 0
     q[n] = 0
     K = 5
-    Q = 450
+    Q = 500
 
     # Declaring variables
     x = model.addVars(n + 1, n + 1, lb=0.0, ub=GRB.INFINITY, vtype=GRB.BINARY, name="x")
@@ -79,37 +76,65 @@ def run_model(iter):
     add_vehicle_capacity_constraint_1(model, x, y, n, q, Q)
     add_vehicle_capacity_constraint_2(model, y, n, 1,Q)
 
-    logging.info(f"Optimizing VRP Model{iter}")
     model.optimize()
-    logging.info(f"Finished solving VRP Model{iter}")
 
     #print_solution(model)
-    return iter
+
+def run_process_in_parallel(process, args):
+    processes = [Process(target=process, args=args)]
+    start = time.perf_counter()
+    for p in processes:
+        p.start()
+    # Wait for all processes to finish
+    for p in processes:
+        p.join()
+    end = time.perf_counter()
+
+    #Returning the time spent running all processes
+    return end - start
+
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.CRITICAL)
+    logging.basicConfig(level=logging.INFO)
 
+    num_problems = 5
+    num_runs = 10
 
+    #Setting number of nodes
+    n = 18
+    #Creating 5 arrays of arc-costs and demands, for 5 iterations of the problem
+    costs_c = [np.random.uniform(low=1, high=10, size=(n, n + 1)) for i in range(num_problems)]
+    demands_q = [np.random.uniform(low=0, high=100, size=(n + 1)) for i in range(num_problems)]
 
     # Start each process
-    for i in range(5):
-        processes = [Process(target=run_model, args=(i,)) for i in range(6)]
-        start = time.perf_counter()
+    runtimes_paralell = []
+    runtimes_series = []
+
+    for i in range(num_runs):
+        logging.info(f"Running itereation {i} of paralell computing")
+        processes = [Process(target=run_model, args=(costs_c[j], demands_q[j], n)) for j in range(len(costs_c))]
+        start_paralell = time.perf_counter()
         for p in processes:
             p.start()
         # Wait for all processes to finish
         for p in processes:
             p.join()
-        end = time.perf_counter()
-        write_solving_time_to_file(f"paralell {i}:", str(end-start))
+        end_paralell = time.perf_counter()
+        runtimes_paralell.append(end_paralell - start_paralell)
 
-        start = time.perf_counter()
-        for i in range(6):
-            run_model(i)
-        end = time.perf_counter()
-        write_solving_time_to_file(f"series {i}:", str(end - start))
-
+    for i in range(num_runs):
+        logging.info(f"Running itereation {i} of serial computing")
+        start_series = time.perf_counter()
+        for j in range(num_problems):
+            run_model(costs_c[j], demands_q[j], n)
+        end_series = time.perf_counter()
+        runtimes_series.append(end_series - start_series)
 
     print("All processes have finished.")
+    print("paralell", runtimes_paralell)
+    print("series", runtimes_series)
+    write_solving_time_to_file("PARALELL:", runtimes_paralell)
+    write_solving_time_to_file("SERIES:", runtimes_series)
+
 
 
