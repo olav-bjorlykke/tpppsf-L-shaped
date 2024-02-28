@@ -3,7 +3,7 @@ class LShapedAlgoritm:
     def __init__(self) -> None:
         pass
 '''
-    : Init and solve master problem
+    : Init and solve master problem w/o optimality cut
     : Init subproblems based on master problem solution
         : Solve SPs
         : Add optimality cut to MP
