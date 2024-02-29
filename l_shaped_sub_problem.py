@@ -61,6 +61,8 @@ class LShapedSubProblem(Model):
         #TODO: Implement with only continous variables
         pass
 
+    def set_fixed_variables(self):
+
     def add_objective(self):
         Penalty_parameter = 10000000000
         self.model.setObjective(
@@ -83,6 +85,22 @@ class LShapedSubProblem(Model):
         )
 
     def add_fallowing_constraints(self): #Fallowing constraint
+        # Fixed
+        self.model.addConstrs(
+            gp.quicksum(
+                self.employ_bin[tau] for tau in range(t - self.parameters.min_fallowing_periods, t)
+            )
+            - self.z_slack_1[t]
+            <= self.parameters.min_fallowing_periods * (1 - self.deploy_bin[t]) #TODO: Replace with fixed gamma
+            for t in range(self.parameters.min_fallowing_periods, self.t_size)
+        )
+
+        #TODO: Figure out if this constraint needs to be considered when passing the sensitivities up!
+        self.model.addConstrs(
+            # This is an additional constraint - ensuring that only 1 deployment happens during the initial possible deployment period TODO: See if this needs to be implemented in the math model
+            gp.quicksum(self.deploy_bin[t] for t in range(self.parameters.min_fallowing_periods)) <= 1
+        )
+
         #TODO: Implement with slack variable and fixed gamma (74)
         pass
 
