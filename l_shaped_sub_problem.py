@@ -61,6 +61,7 @@ class LShapedSubProblem(Model):
         pass
 
     def add_objective(self):
+        Penalty_parameter = 10000000000
         self.model.setObjective(
             gp.quicksum(self.w[f,t_hat,t]
                         for f in range(self.f_size)
@@ -68,10 +69,11 @@ class LShapedSubProblem(Model):
                         for t in range(self.growth_sets[self.location].loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat],
                                        min(t_hat + self.parameters.max_periods_deployed, self.t_size))
                         )
+            - self.z_slack_1 * Penalty_parameter
+            - self.z_slack_2 * Penalty_parameter
         )
-        pass
 
-    def add_fallowing_constraints(self):
+    def add_fallowing_constraints(self): #Fallowing constraint
         #TODO: Implement with slack variable and fixed gamma (74)
         pass
 
