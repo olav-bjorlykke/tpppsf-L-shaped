@@ -50,11 +50,13 @@ class LShapedSubProblem(Model):
         # s and l removed as indices due to them being fixed in every sub problem
         self.w = self.model.addVars(self.f_size, self.t_size, self.t_size,
                                     vtype=GRB.CONTINUOUS, lb=0, name="W")
-
+        #Declaring slack variables
+        self.z_slack_1 = self.model.addVars(self.t_size,vtype=GRB.CONTINUOUS, lb = 0, name = "z_slack_1")
+        self.z_slack_2 = self.model.addVars(self.t_size, vtype=GRB.CONTINUOUS, lb=0, name="z_slack_2")
         # Declaring, the binary variables from the original problem as continuous due to the LP Relaxation
         # These must be continous for us to be able to fetch the dual values out
         self.harvest_bin = self.model.addVars(self.t_size, vtype=GRB.CONTINUOUS)
-        self.employ_bin = self.model.addVars(self.t_size, vtype=GRB.CONTINUOUS)
+        self.employ_bin = self.model.addVars(self.t_size, self.t_size, vtype=GRB.CONTINUOUS)
         #TODO: Implement with only continous variables
         pass
 
