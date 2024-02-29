@@ -5,6 +5,7 @@ class LShapedAlgoritm:
     def __init__(self) -> None:
         pass
 
+
     def run():
         master_problem = LShapedMasterProblem(sites.short_sites_list, 0) # TODO: change input
         master_problem.initialize_model()
@@ -19,3 +20,4 @@ class LShapedAlgoritm:
             master_problem.solve()
             new_master_problem_solution = master_problem.get_variable_values()
        #TODO: decide what to return. Will change when we integrate into DW-decomp
+

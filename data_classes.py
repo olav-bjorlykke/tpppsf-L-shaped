@@ -17,3 +17,4 @@ class LShapedSubProblemDualVariables():
     rho_5: list[list[float]] # index order t_hat, t. Also needs s as scenario index
     rho_6: list[float] # index order t. Also needs s as scenario index
     rho_7: list[float] # index order t. Also needs s as scenario index
+
