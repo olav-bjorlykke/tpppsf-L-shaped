@@ -35,6 +35,7 @@ class LShapedSubProblem(Model):
         self.add_fallowing_constraints()
         self.add_biomass_development_constraints()
         self.add_w_forcing_constraint()
+        self.add_MAB_requirement_constraint()
 
         #2. Add constraints
 
@@ -62,7 +63,7 @@ class LShapedSubProblem(Model):
                                     vtype=GRB.CONTINUOUS, lb=0, name="W")
         #Declaring slack variables
         self.z_slack_1 = self.model.addVars(self.t_size,vtype=GRB.CONTINUOUS, lb = 0, name = "z_slack_1")
-        self.z_slack_2 = self.model.addVars(self.t_size, self.t_size, vtype=GRB.CONTINUOUS, lb=0, name="z_slack_2")
+        self.z_slack_2 = self.model.addVars(self.t_size, self.t_size + 1, vtype=GRB.CONTINUOUS, lb=0, name="z_slack_2")
         # Declaring, the binary variables from the original problem as continuous due to the LP Relaxation
         # These must be continous for us to be able to fetch the dual values out
         self.harvest_bin = self.model.addVars(self.t_size, self.t_size, vtype=GRB.CONTINUOUS, name = "harvest_bin")
@@ -153,8 +154,12 @@ class LShapedSubProblem(Model):
             for t in range(t_hat, min(t_hat + self.parameters.max_periods_deployed, self.t_size))
         )
 
-
     def add_MAB_requirement_constraint(self):
+        self.model.addConstrs(
+            gp.quicksum(self.x[ f, t_hat, t] for f in range(self.f_size)) - self.z_slack_2[t_hat,t] <= self.sites[self.location].MAB_capacity
+            for t_hat in range(self.t_size)
+            for t in range(t_hat, min(t_hat + self.parameters.max_periods_deployed, self.t_size + 1))
+        )
         #TODO: Implement with slack variable (82)
         pass
 
@@ -183,7 +188,7 @@ class LShapedSubProblem(Model):
 if __name__ == "__main__":
     y = [[0.0 for i in range(60)]]
     y[0][0] = 0
-    y[0][30] = 1000
+    y[0][30] = 1000 *100
 
     fixed_variables = LShapedMasterProblemVariables(
         l=1,
