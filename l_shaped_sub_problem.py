@@ -33,6 +33,7 @@ class LShapedSubProblem(Model):
         #2. Add constraints
 
         #3. Optimize
+        self.model.optimize()
 
         pass
     
@@ -52,7 +53,7 @@ class LShapedSubProblem(Model):
                                     vtype=GRB.CONTINUOUS, lb=0, name="W")
         #Declaring slack variables
         self.z_slack_1 = self.model.addVars(self.t_size,vtype=GRB.CONTINUOUS, lb = 0, name = "z_slack_1")
-        self.z_slack_2 = self.model.addVars(self.t_size, vtype=GRB.CONTINUOUS, lb=0, name="z_slack_2")
+        self.z_slack_2 = self.model.addVars(self.t_size, self.t_size, vtype=GRB.CONTINUOUS, lb=0, name="z_slack_2")
         # Declaring, the binary variables from the original problem as continuous due to the LP Relaxation
         # These must be continous for us to be able to fetch the dual values out
         self.harvest_bin = self.model.addVars(self.t_size, vtype=GRB.CONTINUOUS)
@@ -69,8 +70,16 @@ class LShapedSubProblem(Model):
                         for t in range(self.growth_sets[self.location].loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat],
                                        min(t_hat + self.parameters.max_periods_deployed, self.t_size))
                         )
-            - self.z_slack_1 * Penalty_parameter
-            - self.z_slack_2 * Penalty_parameter
+
+            - Penalty_parameter * gp.quicksum(self.z_slack_1[t] for t in range(self.t_size)) #TODO: Change to the actual set used
+
+            - Penalty_parameter * gp.quicksum(self.z_slack_2[t_hat, t]
+                                              for t_hat in range(self.t_size)
+                                              for t in range(t_hat, self.t_size))
+            # NOTE: This is not the range specified in the formulation, but it should work since
+            # the slack variable will always be 0 if it can with this formulation of the max problem.
+            #TODO: Change to a more specific range if necesarry.
+
         )
 
     def add_fallowing_constraints(self): #Fallowing constraint
