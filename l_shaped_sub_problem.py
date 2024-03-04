@@ -36,6 +36,7 @@ class LShapedSubProblem(Model):
         self.add_biomass_development_constraints()
         self.add_w_forcing_constraint()
         self.add_MAB_requirement_constraint()
+        self.add_inactivity_constraint()
 
         #2. Add constraints
 
@@ -71,6 +72,9 @@ class LShapedSubProblem(Model):
         #TODO: Implement with only continous variables
 
 
+    """
+    Objective
+    """
     def add_objective(self):
         Penalty_parameter = 1000000000
         self.model.setObjective(
@@ -92,6 +96,11 @@ class LShapedSubProblem(Model):
             , GRB.MAXIMIZE
         )
 
+    """
+    Constraints
+    """
+
+    #74
     def add_fallowing_constraints(self): #Fallowing constraint
         # Fixed
         self.model.addConstrs(
@@ -113,6 +122,18 @@ class LShapedSubProblem(Model):
         #TODO: Implement with slack variable and fixed gamma (74)
         pass
 
+    #75
+    def add_inactivity_constraint(self):
+        self.model.addConstrs(
+            # This is the constraint (5.7) - ensuring that the site is not inactive longer than the max fallowing limit
+            gp.quicksum(self.employ_bin[tau] for tau in
+                        range(t, min(t + self.parameters.max_fallowing_periods, self.t_size))) >= 1
+            # The sum function and therefore the t set is not implemented exactly like in the mathematical model, but functionality is the same
+            for t in range(self.t_size)
+        )
+
+
+    #78 - 80
     def add_biomass_development_constraints(self):
         self.model.addConstrs(  # This is constraint (5.9) - which ensures that biomass x = biomass deployed y
             self.x[f, t, t] == self.fixed_variables.y[f][t]
@@ -154,6 +175,7 @@ class LShapedSubProblem(Model):
             for t in range(t_hat, min(t_hat + self.parameters.max_periods_deployed, self.t_size))
         )
 
+    #83
     def add_MAB_requirement_constraint(self):
         self.model.addConstrs(
             gp.quicksum(self.x[ f, t_hat, t] for f in range(self.f_size)) - self.z_slack_2[t_hat,t] <= self.sites[self.location].MAB_capacity
@@ -162,6 +184,7 @@ class LShapedSubProblem(Model):
         )
         #TODO: Implement with slack variable (82)
         pass
+
 
     def get_dual_values(self):
         #TODO: Implement
@@ -188,7 +211,7 @@ class LShapedSubProblem(Model):
 if __name__ == "__main__":
     y = [[0.0 for i in range(60)]]
     y[0][0] = 0
-    y[0][30] = 1000 *100
+    y[0][40] = 1000 *100
 
     fixed_variables = LShapedMasterProblemVariables(
         l=1,
