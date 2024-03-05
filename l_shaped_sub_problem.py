@@ -38,6 +38,7 @@ class LShapedSubProblem(Model):
         self.add_MAB_requirement_constraint()
         self.add_inactivity_constraint()
         self.add_harvest_forcing_constraints()
+        self.add_employment_bin_forcing_constraints()
 
         #2. Add constraints
 
@@ -71,6 +72,7 @@ class LShapedSubProblem(Model):
         # These must be continous for us to be able to fetch the dual values out
         self.harvest_bin = self.model.addVars(self.t_size, vtype=GRB.CONTINUOUS, name = "harvest_bin", lb=0, ub=1)
         self.employ_bin = self.model.addVars(self.t_size, vtype=GRB.CONTINUOUS, name = "Employ bin", lb =0, ub=1)
+        self.employ_bin_granular = self.model.addVars(self.t_size, self.t_size, vtype=GRB.CONTINUOUS, name="Employ bin gran", lb=0, ub=1)
         #TODO: Implement with only continous variables
 
 
@@ -185,22 +187,29 @@ class LShapedSubProblem(Model):
 
         )
 
+    def add_employment_bin_forcing_constraints(self):
         self.model.addConstrs(
-            # This is the constraint (5.12) - Which forces the binary employement variable to be positive if biomass is employed
-            gp.quicksum(self.x[f, t_hat, t] for f in range(self.f_size)) <= self.employ_bin[t] * self.parameters.bigM
+            self.employ_bin_granular[t_hat, t] - gp.quicksum(
+                self.x[f, t_hat, t] for f in range(self.f_size)) <= 0
             for t_hat in range(self.t_size)
-            for t in range(t_hat, min(t_hat + self.parameters.max_periods_deployed, self.t_size))
+            for t in range(self.t_size)
         )
 
         self.model.addConstrs(
-            #TODO: continue
-            self.employ_bin[t] - gp.quicksum(self.x[f, t_hat, t] for f in range(self.f_size)) - self.z_slack_3[t] <= 0
+            gp.quicksum(self.x[f, t_hat, t] for f in range(self.f_size)) - self.employ_bin_granular[
+                t_hat, t] * self.parameters.bigM <= 0
             for t_hat in range(self.t_size)
-            for t in range(t_hat, min(t_hat + self.parameters.max_periods_deployed, self.t_size))
-        ) 
+            for t in range(self.t_size)
+        )
 
+        self.model.addConstrs(
+            self.employ_bin[t] - gp.quicksum(
+                self.employ_bin_granular[t_hat, t] for t_hat in range(self.t_size)) == 0
+            for t in range(self.t_size)
+        )
 
     #84
+
     def add_MAB_requirement_constraint(self):
         self.model.addConstrs(
             gp.quicksum(self.x[ f, t_hat, t] for f in range(self.f_size)) - self.z_slack_2[t_hat,t] <= self.sites[self.location].MAB_capacity
@@ -210,9 +219,6 @@ class LShapedSubProblem(Model):
         #TODO: Implement with slack variable (82)
         pass
 
-    def get_dual_values(self):
-        #TODO: Implement
-        pass
 
     def add_w_forcing_constraint(self):
         self.model.addConstrs(
@@ -231,6 +237,18 @@ class LShapedSubProblem(Model):
             for t_hat in range(self.t_size)
             for t in range(min(t_hat + self.parameters.max_periods_deployed, self.t_size), self.t_size)
         )
+
+    def add_x_forcing_constraint(self):  # TODO: check if used or remove
+        self.model.addConstrs(
+            self.x[f, t_hat, t] <= 0
+            for t_hat in range(self.t_size)
+            for t in range(0, t_hat)
+            for f in range(self.f_size)
+        )
+
+    def get_dual_values(self):
+        #TODO: Implement
+        pass
 
 if __name__ == "__main__":
     y = [[0.0 for i in range(60)]]

@@ -1,7 +1,7 @@
 import os
 
 def set_instance():
-    instance = int(input("Set the instance 0 = small, 1 = medium, 2 = large: "))
+    instance = int(input("Set the instance 0 = small, 1 = medium, 2 = large: ,3 = test"))
     return instance
 
 def set_scenarios():
@@ -9,7 +9,7 @@ def set_scenarios():
     return num_scenarios
 
 
-INSTANCES = ["SMALL", "MEDIUM", "LARGE"]
+INSTANCES = ["SMALL", "MEDIUM", "LARGE", "TEST"]
 INSTANCE = INSTANCES[set_instance()]
 NUM_SCENARIOS = set_scenarios()
 OUTPUT_DIR = f"./output/instance_{INSTANCE}_scenario_{NUM_SCENARIOS}"
