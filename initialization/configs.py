@@ -1,15 +1,15 @@
 import os
 
 def set_instance():
-    instance = int(input("Set the instance 0 = small, 1 = medium, 2 = large: "))
+    instance = int(input("Set the instance 0 = small, 1 = medium, 2 = large: ,3 = test"))
     return instance
 
 def set_scenarios():
-    num_scenarios = int(input("Set the number of scenarios 2,5 or 10: "))
+    num_scenarios = int(input("Set the number of scenarios 1,2,5 or 10: "))
     return num_scenarios
 
 
-INSTANCES = ["SMALL", "MEDIUM", "LARGE"]
+INSTANCES = ["SMALL", "MEDIUM", "LARGE", "TEST"]
 INSTANCE = INSTANCES[set_instance()]
 NUM_SCENARIOS = set_scenarios()
 OUTPUT_DIR = f"./output/instance_{INSTANCE}_scenario_{NUM_SCENARIOS}"
@@ -17,7 +17,11 @@ OUTPUT_DIR = f"./output/instance_{INSTANCE}_scenario_{NUM_SCENARIOS}"
 
 print(f"Running {NUM_SCENARIOS} scenarios and {INSTANCE} instance")
 
-if NUM_SCENARIOS == 2:
+if NUM_SCENARIOS == 1:
+    SCENARIOS_VARIATIONS = [1.0]
+    SCENARIO_PROBABILITIES = [1.0]
+
+elif NUM_SCENARIOS == 2:
     SCENARIOS_VARIATIONS = [0.98,1.02]
     SCENARIO_PROBABILITIES = [0.5,0.5]
 elif NUM_SCENARIOS == 5:
@@ -42,6 +46,8 @@ elif INSTANCE == "SMALL":
     NUM_LOCATIONS = 3
     MAB_COMPANY_LIMIT = 4000 * 1000
 else:
+    NUM_LOCATIONS = 2
+    MAB_COMPANY_LIMIT = 4000 * 1000
     print("Instance not defined")
 
 

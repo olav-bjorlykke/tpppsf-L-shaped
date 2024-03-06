@@ -78,7 +78,8 @@ class Model:
         self.add_forcing_constraints()
         self.add_MAB_company_requirement_constraint()
         self.add_end_of_horizon_constraint()
-        #self.add_x_forcing_constraint()
+        self.add_employ_bin_forcing_constraints()
+        self.add_x_forcing_constraint()
         self.add_up_branching_constraints()
         self.add_down_branching_constraints()
 
@@ -91,6 +92,9 @@ class Model:
             self.plot_solutions_x_values_per_site()
             self.plot_solutions_x_values_aggregated()
             self.iterations += 1
+            for v in self.model.getVars():
+                if v.X > 0:
+                    print(f'{v.varName} {v.X}')
 
 
         #Putting solution into variables for export
@@ -186,6 +190,7 @@ class Model:
         self.deploy_bin = self.model.addVars(self.l_size, self.t_size, vtype=GRB.BINARY)
         self.harvest_bin = self.model.addVars(self.l_size, self.t_size, self.s_size, vtype=GRB.BINARY)
         self.employ_bin = self.model.addVars(self.l_size, self.t_size, self.s_size, vtype=GRB.BINARY)
+        self.employ_bin_granular = self.model.addVars(self.l_size, self.t_size, self.t_size, self.s_size, vtype=GRB.BINARY)
 
     """
     Objective setter functions
@@ -404,15 +409,30 @@ class Model:
 
         )
 
+    def add_employ_bin_forcing_constraints(self):
+        self.model.addConstrs(
+            self.employ_bin_granular[l,t_hat, t, s] - gp.quicksum(self.x[l,f,t_hat,t,s] for f in range(self.f_size)) <= 0
+            for l in range(self.l_size)
+            for t_hat in range(self.t_size)
+            for t in range(self.t_size)
+            for s in range(self.s_size)
+        )
 
         self.model.addConstrs(
-            # This is the constraint (5.12) - Which forces the binary employement variable to be positive if biomass is employed
-            gp.quicksum(self.x[l, f, t_hat, t, s] for f in range(self.f_size)) <= self.employ_bin[l, t, s] * self.parameters.bigM
+            gp.quicksum(self.x[l,f,t_hat, t, s] for f in range(self.f_size)) - self.employ_bin_granular[l, t_hat, t, s] * self.parameters.bigM <= 0
             for l in range(self.l_size)
-            for s in range(self.s_size)
             for t_hat in range(self.t_size)
-            for t in range(t_hat, min(t_hat + self.parameters.max_periods_deployed, self.t_size))
+            for t in range(self.t_size)
+            for s in range(self.s_size)
         )
+
+        self.model.addConstrs(
+            self.employ_bin[l,t,s] - gp.quicksum(self.employ_bin_granular[l,t_hat, t, s] for t_hat in range(self.t_size)) == 0
+            for l in range(self.l_size)
+            for t in range(self.t_size)
+            for s in range(self.s_size)
+        )
+
 
     def add_MAB_requirement_constraint(self):
         self.model.addConstrs(
@@ -449,7 +469,6 @@ class Model:
                     self.parameters.MAB_company_limit * self.parameters.MAB_util_end
                     , name="Second E0H down"
                 )
-
 
     def add_initial_condition_constraint(self): #TODO: Add initial constraints
         for l in range(self.l_size):
@@ -491,9 +510,22 @@ class Model:
         )
 
     def add_x_forcing_constraint(self):#TODO: check if used or remove
+        """
         self.model.addConstrs(
             self.x[l, f, t_hat, self.t_size, s] <= self.deploy_bin[l,t_hat] * self.parameters.MAB_company_limit
             for t_hat in range(self.t_size)
+            for l in range(self.l_size)
+            for f in range(self.f_size)
+            for s in range(self.s_size)
+        )
+        :return:
+        """
+
+
+        self.model.addConstrs(
+            self.x[l, f, t_hat, t, s] <= 0
+            for t_hat in range(self.t_size)
+            for t in range(0, t_hat)
             for l in range(self.l_size)
             for f in range(self.f_size)
             for s in range(self.s_size)

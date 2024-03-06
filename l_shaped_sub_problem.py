@@ -36,6 +36,9 @@ class LShapedSubProblem(Model):
         self.add_biomass_development_constraints()
         self.add_w_forcing_constraint()
         self.add_MAB_requirement_constraint()
+        self.add_inactivity_constraint()
+        self.add_harvest_forcing_constraints()
+        self.add_employment_bin_forcing_constraints()
 
         #2. Add constraints
 
@@ -64,15 +67,20 @@ class LShapedSubProblem(Model):
         #Declaring slack variables
         self.z_slack_1 = self.model.addVars(self.t_size,vtype=GRB.CONTINUOUS, lb = 0, name = "z_slack_1")
         self.z_slack_2 = self.model.addVars(self.t_size, self.t_size + 1, vtype=GRB.CONTINUOUS, lb=0, name="z_slack_2")
+        self.z_slack_3 = self.model.addVars(self.t_size, vtype=GRB.CONTINUOUS, lb=0, name="z_slack_3")
         # Declaring, the binary variables from the original problem as continuous due to the LP Relaxation
         # These must be continous for us to be able to fetch the dual values out
-        self.harvest_bin = self.model.addVars(self.t_size, self.t_size, vtype=GRB.CONTINUOUS, name = "harvest_bin")
-        self.employ_bin = self.model.addVars(self.t_size, vtype=GRB.CONTINUOUS, name = "Employ bin")
+        self.harvest_bin = self.model.addVars(self.t_size, vtype=GRB.CONTINUOUS, name = "harvest_bin", lb=0, ub=1)
+        self.employ_bin = self.model.addVars(self.t_size, vtype=GRB.CONTINUOUS, name = "Employ bin", lb =0, ub=1)
+        self.employ_bin_granular = self.model.addVars(self.t_size, self.t_size, vtype=GRB.CONTINUOUS, name="Employ bin gran", lb=0, ub=1)
         #TODO: Implement with only continous variables
 
 
+    """
+    Objective
+    """
     def add_objective(self):
-        Penalty_parameter = 1000000000
+        Penalty_parameter = 100000000000
         self.model.setObjective(
             gp.quicksum(self.w[f,t_hat,t]
                         for f in range(self.f_size)
@@ -82,16 +90,19 @@ class LShapedSubProblem(Model):
                         )
 
             - Penalty_parameter * gp.quicksum(self.z_slack_1[t] for t in range(self.t_size)) #TODO: Change to the actual set used
-
-            - Penalty_parameter * gp.quicksum(self.z_slack_2[t_hat, t]
-                                              for t_hat in range(self.t_size)
-                                              for t in range(t_hat, self.t_size))
+            - Penalty_parameter * gp.quicksum(self.z_slack_2[t_hat, t] for t_hat in range(self.t_size) for t in range(t_hat, self.t_size))
+            - Penalty_parameter * gp.quicksum(self.z_slack_3[t] for t in range(self.t_size))
             # NOTE: This is not the range specified in the formulation, but it should work since
             # the slack variable will always be 0 if it can with this formulation of the max problem.
             #TODO: Change to a more specific range if necesarry.
             , GRB.MAXIMIZE
         )
 
+    """
+    Constraints
+    """
+
+    #74
     def add_fallowing_constraints(self): #Fallowing constraint
         # Fixed
         self.model.addConstrs(
@@ -113,6 +124,36 @@ class LShapedSubProblem(Model):
         #TODO: Implement with slack variable and fixed gamma (74)
         pass
 
+    #75
+    def add_inactivity_constraint(self):
+        self.model.addConstrs(
+            # This is the constraint (5.7) - ensuring that the site is not inactive longer than the max fallowing limit
+            gp.quicksum(self.employ_bin[tau] for tau in
+                        range(t, min(t + self.parameters.max_fallowing_periods, self.t_size))) >= 1
+            # The sum function and therefore the t set is not implemented exactly like in the mathematical model, but functionality is the same
+            for t in range(self.t_size)
+        )
+
+    #76 - 77
+    def add_harvest_forcing_constraints(self):
+        # Fixed
+        self.model.addConstrs(
+            # This is the first part of constraint (5.8) - which limits harvest in a single period to an upper limit
+            gp.quicksum(
+                self.w[f, t_hat, t] for f in range(self.f_size) for t_hat in
+                        range(t)) - self.parameters.max_harvest * self.harvest_bin[t] <= 0
+            for t in range(self.t_size)
+        )
+
+        # Fixed
+        self.model.addConstrs(
+            # This is the second part of constraint (5.8) - which limits harvest in a single period to a lower limit
+                self.parameters.min_harvest * self.harvest_bin[t] - gp.quicksum(self.w[f, t_hat, t] for f in range(self.f_size) for t_hat in range(t)) <= 0
+            for t in range(self.t_size)
+        )
+        pass
+
+    #78 - 81
     def add_biomass_development_constraints(self):
         self.model.addConstrs(  # This is constraint (5.9) - which ensures that biomass x = biomass deployed y
             self.x[f, t, t] == self.fixed_variables.y[f][t]
@@ -146,13 +187,28 @@ class LShapedSubProblem(Model):
 
         )
 
+    def add_employment_bin_forcing_constraints(self):
         self.model.addConstrs(
-            # This is the constraint (5.12) - Which forces the binary employement variable to be positive if biomass is employed
-            gp.quicksum(self.x[f, t_hat, t] for f in range(self.f_size)) <= self.employ_bin[
-                t] * self.parameters.bigM
+            self.employ_bin_granular[t_hat, t] - gp.quicksum(
+                self.x[f, t_hat, t] for f in range(self.f_size)) <= 0
             for t_hat in range(self.t_size)
-            for t in range(t_hat, min(t_hat + self.parameters.max_periods_deployed, self.t_size))
+            for t in range(self.t_size)
         )
+
+        self.model.addConstrs(
+            gp.quicksum(self.x[f, t_hat, t] for f in range(self.f_size)) - self.employ_bin_granular[
+                t_hat, t] * self.parameters.bigM <= 0
+            for t_hat in range(self.t_size)
+            for t in range(self.t_size)
+        )
+
+        self.model.addConstrs(
+            self.employ_bin[t] - gp.quicksum(
+                self.employ_bin_granular[t_hat, t] for t_hat in range(self.t_size)) == 0
+            for t in range(self.t_size)
+        )
+
+    #84
 
     def add_MAB_requirement_constraint(self):
         self.model.addConstrs(
@@ -163,9 +219,6 @@ class LShapedSubProblem(Model):
         #TODO: Implement with slack variable (82)
         pass
 
-    def get_dual_values(self):
-        #TODO: Implement
-        pass
 
     def add_w_forcing_constraint(self):
         self.model.addConstrs(
@@ -185,10 +238,23 @@ class LShapedSubProblem(Model):
             for t in range(min(t_hat + self.parameters.max_periods_deployed, self.t_size), self.t_size)
         )
 
+    def add_x_forcing_constraint(self):  # TODO: check if used or remove
+        self.model.addConstrs(
+            self.x[f, t_hat, t] <= 0
+            for t_hat in range(self.t_size)
+            for t in range(0, t_hat)
+            for f in range(self.f_size)
+        )
+
+    def get_dual_values(self):
+        #TODO: Implement
+        pass
+
 if __name__ == "__main__":
     y = [[0.0 for i in range(60)]]
     y[0][0] = 0
     y[0][30] = 1000 *100
+    y[0][8] = 1000 * 100
 
     fixed_variables = LShapedMasterProblemVariables(
         l=1,
