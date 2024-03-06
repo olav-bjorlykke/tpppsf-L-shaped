@@ -1,11 +1,11 @@
 import os
 
 def set_instance():
-    instance = int(input("Set the instance 0 = small, 1 = medium, 2 = large: ,3 = test"))
+    instance = int(input("Set the instance 0 = small, 1 = medium, 2 = large, 3 = test: "))
     return instance
 
 def set_scenarios():
-    num_scenarios = int(input("Set the number of scenarios 1,2,5 or 10: "))
+    num_scenarios = int(input("Set the number of scenarios 1, 2, 5 or 10: "))
     return num_scenarios
 
 
