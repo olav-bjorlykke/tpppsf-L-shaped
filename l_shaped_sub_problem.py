@@ -1,28 +1,31 @@
-import pandas as pd
 from initialization.input_data import InputData
-import initialization.configs
+import initialization.configs as configs
+import initialization.parameters as parameters
+from initialization.sites import Site
 from model import Model
 import gurobipy as gp
 from gurobipy import GRB
-import initialization.sites as sites
 from data_classes import LShapedMasterProblemVariables, LShapedSubProblemDualVariables
 
 class LShapedSubProblem(Model):
     def __init__(self,
-                 scenario: int,                                 #An int between 0 and s where s is the number of scenarios. Denotes the scenario in this subporblem
-                 location: int,                                 #An int between 0 and L, where l is the number of locations. Denotes the location of this subproblem
-                 fixed_variables: LShapedMasterProblemVariables,
-                 site_objects, #TODO: Could we remove this? are we using any of the supermethods?
-                 MAB_shadow_prices_df=pd.DataFrame(),
-                 EOH_shadow_prices_df=pd.DataFrame(), 
-                 input_data=InputData(), 
-                 parameters=initialization.parameters, 
-                 scenario_probabilities=initialization.configs.SCENARIO_PROBABILITIES):
-        
-        self.fixed_variables = fixed_variables
+                 scenario: int,
+                 site: Site,
+                 site_index: int,                                 
+                 fixed_variables: LShapedMasterProblemVariables, 
+                 input_data: InputData
+                 ):
+        self.site = site
         self.scenario = scenario
-        self.location = location
-        super().__init__(site_objects, MAB_shadow_prices_df, EOH_shadow_prices_df, input_data, parameters, scenario_probabilities)
+        self.location = site_index
+        self.fixed_variables = fixed_variables
+        self.input_data = input_data
+        self.s_size = configs.NUM_SCENARIOS
+        self.f_size = configs.NUM_SMOLT_TYPES
+        self.t_size = parameters.number_periods
+        self.growth_factors = self.site.growth_per_scenario_df
+        self.growth_sets = self.site.growth_sets
+        self.smolt_weights = parameters.smolt_weights
 
     def initialize_model(self):
         self.model = gp.Model("LShapedSubProblem")
@@ -90,8 +93,8 @@ class LShapedSubProblem(Model):
             gp.quicksum(self.w[f,t_hat,t]
                         for f in range(self.f_size)
                         for t_hat in range(self.t_size)
-                        for t in range(self.growth_sets[self.location].loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat],
-                                       min(t_hat + self.parameters.max_periods_deployed, self.t_size))
+                        for t in range(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat],
+                                       min(t_hat + parameters.max_periods_deployed, self.t_size))
                         )
 
             - Penalty_parameter * gp.quicksum(self.z_slack_1[t] for t in range(self.t_size)) #TODO: Change to the actual set used
@@ -111,11 +114,11 @@ class LShapedSubProblem(Model):
         # Fixed
         self.model.addConstrs((
             gp.quicksum(
-                self.employ_bin[tau] for tau in range(t - self.parameters.min_fallowing_periods, t)
+                self.employ_bin[tau] for tau in range(t - parameters.min_fallowing_periods, t)
             )
             - self.z_slack_1[t]
-            <= self.parameters.min_fallowing_periods * (1 - self.fixed_variables.deploy_bin[t])
-            for t in range(self.parameters.min_fallowing_periods, self.t_size)), name="fallowing_constriants_1"
+            <= parameters.min_fallowing_periods * (1 - self.fixed_variables.deploy_bin[t])
+            for t in range(parameters.min_fallowing_periods, self.t_size)), name="fallowing_constriants_1"
         )
 
 
@@ -124,7 +127,7 @@ class LShapedSubProblem(Model):
         self.model.addConstrs((
             # This is the constraint (5.7) - ensuring that the site is not inactive longer than the max fallowing limit
             gp.quicksum(self.employ_bin[tau] for tau in
-                        range(t, min(t + self.parameters.max_fallowing_periods, self.t_size))) >= 1
+                        range(t, min(t + parameters.max_fallowing_periods, self.t_size))) >= 1
             # The sum function and therefore the t set is not implemented exactly like in the mathematical model, but functionality is the same
             for t in range(self.t_size)), name="inactivity_constraints"
         )
@@ -136,14 +139,14 @@ class LShapedSubProblem(Model):
             # This is the first part of constraint (5.8) - which limits harvest in a single period to an upper limit
             gp.quicksum(
                 self.w[f, t_hat, t] for f in range(self.f_size) for t_hat in
-                        range(t)) - self.parameters.max_harvest * self.harvest_bin[t] <= 0
+                        range(t)) - parameters.max_harvest * self.harvest_bin[t] <= 0
             for t in range(self.t_size)
         )
 
         # Fixed
         self.model.addConstrs(
             # This is the second part of constraint (5.8) - which limits harvest in a single period to a lower limit
-                self.parameters.min_harvest * self.harvest_bin[t] - gp.quicksum(self.w[f, t_hat, t] for f in range(self.f_size) for t_hat in range(t)) <= 0
+                parameters.min_harvest * self.harvest_bin[t] - gp.quicksum(self.w[f, t_hat, t] for f in range(self.f_size) for t_hat in range(t)) <= 0
             for t in range(self.t_size)
         )
         pass
@@ -159,26 +162,26 @@ class LShapedSubProblem(Model):
         # Fixed
         self.model.addConstrs(
             # This represents the constraint (5.10) - which ensures biomass growth in the growth period
-            self.x[f, t_hat, t + 1] == (1 - self.parameters.expected_production_loss) * self.x[
+            self.x[f, t_hat, t + 1] == (1 - parameters.expected_production_loss) * self.x[
                 f, t_hat, t] *
-            self.growth_factors[self.location].loc[(self.smolt_weights[f], f"Scenario {self.scenario}", t_hat)][t]
+            self.growth_factors.loc[(self.smolt_weights[f], f"Scenario {self.scenario}", t_hat)][t]
             for t_hat in range(self.t_size - 1)
             for f in range(self.f_size)
             for t in
             range(min(t_hat, self.t_size),
-                  min(self.growth_sets[self.location].loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat], self.t_size))
+                  min(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat], self.t_size))
         )
 
         # Fixed
         self.model.addConstrs(
             # This is the constraint (5.11) - Which tracks the biomass employed in the harvest period
-            self.x[f, t_hat, t + 1] == (1 - self.parameters.expected_production_loss) * self.x[
+            self.x[f, t_hat, t + 1] == (1 - parameters.expected_production_loss) * self.x[
                 f, t_hat, t] *
-            self.growth_factors[self.location].loc[(self.smolt_weights[f], f"Scenario {self.scenario}", t_hat)][t] - self.w[f, t_hat, t]
+            self.growth_factors.loc[(self.smolt_weights[f], f"Scenario {self.scenario}", t_hat)][t] - self.w[f, t_hat, t]
             for t_hat in range(self.t_size)
             for f in range(self.f_size)
-            for t in range(min(self.growth_sets[self.location].loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat], self.t_size),
-                           min(t_hat + self.parameters.max_periods_deployed, self.t_size))
+            for t in range(min(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat], self.t_size),
+                           min(t_hat + parameters.max_periods_deployed, self.t_size))
 
         )
 
@@ -192,7 +195,7 @@ class LShapedSubProblem(Model):
 
         self.model.addConstrs(
             gp.quicksum(self.x[f, t_hat, t] for f in range(self.f_size)) - self.employ_bin_granular[
-                t_hat, t] * self.parameters.bigM <= 0
+                t_hat, t] * parameters.bigM <= 0
             for t_hat in range(self.t_size)
             for t in range(self.t_size)
         )
@@ -208,9 +211,9 @@ class LShapedSubProblem(Model):
 
     def add_MAB_requirement_constraint(self):
         self.model.addConstrs((
-            gp.quicksum(self.x[f, t_hat, t] for f in range(self.f_size)) - self.z_slack_2[t_hat,t] <= self.sites[self.location].MAB_capacity
+            gp.quicksum(self.x[f, t_hat, t] for f in range(self.f_size)) - self.z_slack_2[t_hat,t] <= self.site.MAB_capacity
             for t_hat in range(self.t_size)
-            for t in range(t_hat, min(t_hat + self.parameters.max_periods_deployed, self.t_size + 1))), name="MAB_constraints"
+            for t in range(t_hat, min(t_hat + parameters.max_periods_deployed, self.t_size + 1))), name="MAB_constraints"
         )
         
     def add_UB_constraints(self):
@@ -229,7 +232,7 @@ class LShapedSubProblem(Model):
             for f in range(self.f_size)
             for t_hat in range(self.t_size)
             for t in
-            range(0, min(self.growth_sets[self.location].loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat], self.t_size))
+            range(0, min(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat], self.t_size))
         )
 
         self.model.addConstrs(
@@ -237,7 +240,7 @@ class LShapedSubProblem(Model):
             self.w[f, t_hat, t] == 0
             for f in range(self.f_size)
             for t_hat in range(self.t_size)
-            for t in range(min(t_hat + self.parameters.max_periods_deployed, self.t_size), self.t_size)
+            for t in range(min(t_hat + parameters.max_periods_deployed, self.t_size), self.t_size)
         )
 
     def add_x_forcing_constraint(self):  
@@ -256,7 +259,7 @@ class LShapedSubProblem(Model):
         rho_5 = []
         rho_6 = []
         rho_7 = []
-        for t in range(self.parameters.min_fallowing_periods, self.t_size):
+        for t in range(parameters.min_fallowing_periods, self.t_size):
             rho_1.append(self.model.getConstrByName(f"fallowing_constriants_1[{t}]").getAttr("Pi"))
         for f in range(self.f_size):
             rho_2.append([])
@@ -268,7 +271,7 @@ class LShapedSubProblem(Model):
             rho_7.append(self.model.getConstrByName(f"employ_bin_UB[{t}]").getAttr("Pi"))
         for t_hat in range(self.t_size):
             rho_5.append([])
-            for t in range(t_hat, min(t_hat + self.parameters.max_periods_deployed, self.t_size + 1)):
+            for t in range(t_hat, min(t_hat + parameters.max_periods_deployed, self.t_size + 1)):
                 rho_5[t_hat].append(self.model.getConstrByName(f"MAB_constraints[{t_hat},{t}]").getAttr("Pi"))
         return LShapedSubProblemDualVariables(rho_1, rho_2, rho_3, rho_4, rho_5, rho_6, rho_7)
 

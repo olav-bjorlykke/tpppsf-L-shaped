@@ -13,6 +13,7 @@ INSTANCES = ["SMALL", "MEDIUM", "LARGE", "TEST"]
 INSTANCE = INSTANCES[set_instance()]
 NUM_SCENARIOS = set_scenarios()
 OUTPUT_DIR = f"./output/instance_{INSTANCE}_scenario_{NUM_SCENARIOS}"
+NUM_SMOLT_TYPES = 1
 
 
 print(f"Running {NUM_SCENARIOS} scenarios and {INSTANCE} instance")
@@ -46,7 +47,7 @@ elif INSTANCE == "SMALL":
     NUM_LOCATIONS = 3
     MAB_COMPANY_LIMIT = 4000 * 1000
 else:
-    NUM_LOCATIONS = 2
+    NUM_LOCATIONS = 1
     MAB_COMPANY_LIMIT = 4000 * 1000
     print("Instance not defined")
 
