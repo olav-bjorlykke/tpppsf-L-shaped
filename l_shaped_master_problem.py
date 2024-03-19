@@ -32,12 +32,20 @@ class LShapedMasterProblem(Model):
         self.model.optimize()
     
     def declare_variables(self):
+        """
+        Declares the decision variables for the model, theta, y, and the binary deployment variables.
+        :return:
+        """
         self.theta = self.model.addVars(self.s_size, vtype=GRB.CONTINUOUS, lb=0, name="theta")
         self.y = self.model.addVars(1, self.f_size, self.t_size, vtype=GRB.CONTINUOUS, lb=0, name="y")
         self.deploy_bin = self.model.addVars(1, self.t_size, vtype=GRB.BINARY, name="gamma") # 1 if smolt of any type is deplyed in t NOTE: No l-index as master problem for each l
         self.deploy_type_bin = self.model.addVars(1, self.f_size, self.t_size, vtype=GRB.BINARY, name="delta") # 1 if smolt type f is deployed in t NOTE: No l-index as master problem for each l 
 
     def set_objective(self):
+        """
+        Sets the objective of the gurobi model
+        :return:
+        """
         self.model.setObjective(
             gp.quicksum(
                 self.scenario_probabilities[s] * self.theta[s] for s in range(self.s_size)
@@ -57,8 +65,12 @@ class LShapedMasterProblem(Model):
             )
 
     def add_smolt_deployment_constraints(self):
+        """
+        Adds the constraints for deployment of smolt. Limiting the number of smolt deployed in any period.
+
+        :return:
+        """
         self.model.addConstrs(
-            # This is the constraint (5.4) - which restricts the deployment of smolt to an upper bound, while forcing the binary deploy variable
             gp.quicksum(self.y[self.l, f, t] for f in range(self.f_size)) <= self.parameters.smolt_deployment_upper_bound * self.deploy_bin[self.l, t]
             # Divide by thousand, as smolt weight is given in grams, while deployed biomass is in kilos
             for t in range(1, self.t_size)
@@ -80,6 +92,9 @@ class LShapedMasterProblem(Model):
             for f in range(self.f_size)
         )
         if self.sites[self.l].init_biomass < 1:
+            #This if statement imposes the biomass limitation in period 0, if there is no initial biomass at the site.
+            #If there is biomass at the site in period 0, the deployed biomass will be limited by the initial condition.
+
             self.model.addConstr(
                 # This is the constraint (5.4) - which restricts the deployment of smolt to an upper bound, while forcing the binary deploy variable
                 gp.quicksum(self.y[self.l, f, 0] for f in range(self.f_size)) <= self.parameters.smolt_deployment_upper_bound * self.deploy_bin[self.l, 0]
@@ -121,17 +136,29 @@ class LShapedMasterProblem(Model):
         )
 
     def get_variable_values(self):
+        """
+        Iterates through all variables in the solution and returns a data class containing their values
+        :return:
+        """
+
+        #Initializing empty lists, to store the variable values
         y_values = []
         deploy_bin_values = []
         deploy_type_bin_values = []
+        #Iterating through the available smolt types
         for f in range(self.f_size):
+            #Adding an empty list to the lists
             y_values.append([])
             deploy_type_bin_values.append([])
+            #Iterating through through all time periods for the given smolt type
             for t in range(self.t_size):
+                #Appending the y and deploy variables to the 2-D list for the given smolt type and period
                 y_values[f].append(self.y[self.l, f, t].getAttr("x"))
                 deploy_type_bin_values[f].append(self.deploy_type_bin[self.l, f, t].getAttr("x"))
         for t in range(self.t_size):
+            #Appending the deploy binary values to the list
             deploy_bin_values.append(self.deploy_bin[self.l, t].getAttr("x"))
+        #Returns a data_class with the stores variables
         return LShapedMasterProblemVariables(self.l, y_values, deploy_bin_values, deploy_type_bin_values)
         
 def test():
@@ -141,4 +168,3 @@ def test():
     values = problem.get_variable_values()
     print(values.y, values.l, values.deploy_bin)
 
-#test()

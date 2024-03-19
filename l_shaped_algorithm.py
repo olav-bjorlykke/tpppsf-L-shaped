@@ -6,7 +6,7 @@ class LShapedAlgoritm:
         pass
 
 
-    def run():
+    def run(self):
         master_problem = LShapedMasterProblem(sites.short_sites_list, 0) # TODO: change input
         master_problem.initialize_model()
         master_problem.solve()
