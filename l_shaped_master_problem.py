@@ -18,7 +18,9 @@ class LShapedMasterProblem():
         self.scenario_probabilities = configs.SCENARIO_PROBABILITIES
         self.f_size = configs.NUM_SMOLT_TYPES
         self.t_size = parameters.number_periods
-        
+        self.growth_sets = self.site.growth_sets
+        self.smolt_weights = parameters.smolt_weights
+
 
 
     def initialize_model(self):
@@ -27,6 +29,7 @@ class LShapedMasterProblem():
         self.set_objective()
         self.add_initial_condition_constraint()
         self.add_smolt_deployment_constraints()
+        self.add_valid_inequality()
     
     def solve(self):
         self.model.optimize()
@@ -119,6 +122,18 @@ class LShapedMasterProblem():
                 gp.quicksum(dual_variables[s].rho_7[t] for t in range(self.t_size))
             )for s in range(self.s_size)
         )
+
+    def add_valid_inequality(self):
+        bigM = 50
+        self.model.addConstrs(
+            gp.quicksum(
+                self.deploy_bin[0,tau] for tau in range(t + 1, self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {s}")][t])
+            ) <= (1 - self.deploy_bin[0,t])*50 #50 should be and adequately large bigM
+            for s in range(self.s_size)
+            for f in range(self.f_size)
+            for t in range(self.t_size)
+        )
+
 
     def get_variable_values(self):
         y_values = []
