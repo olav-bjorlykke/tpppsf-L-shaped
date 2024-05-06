@@ -11,6 +11,7 @@ class LShapedAlgoritm:
 
 
     def run(self):
+
         master_problem = LShapedMasterProblem(self.input_data, sites.short_sites_list[0], 0)
         master_problem.initialize_model()
         master_problem.solve()
