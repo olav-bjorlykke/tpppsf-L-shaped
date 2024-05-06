@@ -165,10 +165,10 @@ class LShapedSubProblem(Model):
             self.x[f, t_hat, t + 1] == (1 - parameters.expected_production_loss) * self.x[
                 f, t_hat, t] *
             self.growth_factors.loc[(self.smolt_weights[f], f"Scenario {self.scenario}", t_hat)][t]
-            for t_hat in range(self.t_size - 1)
+            for t_hat in range(self.t_size)
             for f in range(self.f_size)
             for t in
-            range(min(t_hat, self.t_size),
+            range(t_hat,
                   min(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat], self.t_size))
         )
 
@@ -213,7 +213,7 @@ class LShapedSubProblem(Model):
         self.model.addConstrs((
             gp.quicksum(self.x[f, t_hat, t] for f in range(self.f_size)) - self.z_slack_2[t_hat,t] <= self.site.MAB_capacity
             for t_hat in range(self.t_size)
-            for t in range(t_hat, min(t_hat + parameters.max_periods_deployed, self.t_size + 1))), name="MAB_constraints"
+            for t in range(t_hat, self.t_size + 1)), name="MAB_constraints"
         )
         
     def add_UB_constraints(self):
@@ -223,7 +223,6 @@ class LShapedSubProblem(Model):
         self.model.addConstrs((
             self.employ_bin[t] <= 1 for t in range(self.t_size)), name="employ_bin_UB"
         )
-
 
     def add_w_forcing_constraint(self):
         self.model.addConstrs(
@@ -243,11 +242,20 @@ class LShapedSubProblem(Model):
             for t in range(min(t_hat + parameters.max_periods_deployed, self.t_size), self.t_size)
         )
 
-    def add_x_forcing_constraint(self):  
+    def add_x_forcing_constraint(self):
+        """
         self.model.addConstrs(
             self.x[f, t_hat, t] <= 0
             for t_hat in range(self.t_size)
             for t in range(0, t_hat)
+            for f in range(self.f_size)
+        )
+        :return:
+        """
+
+        self.model.addConstrs(
+            self.x[f, t_hat, 59] <= 0
+            for t_hat in range(self.t_size - 1)
             for f in range(self.f_size)
         )
 
