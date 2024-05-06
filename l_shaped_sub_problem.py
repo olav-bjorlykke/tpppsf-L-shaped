@@ -6,6 +6,7 @@ from model import Model
 import gurobipy as gp
 from gurobipy import GRB
 from data_classes import LShapedMasterProblemVariables, LShapedSubProblemDualVariables
+import pandas as pd
 
 class LShapedSubProblem(Model):
     def __init__(self,
@@ -82,7 +83,6 @@ class LShapedSubProblem(Model):
         self.harvest_bin = self.model.addVars(self.t_size, vtype=GRB.CONTINUOUS, name = "harvest_bin", lb=0) # UB moved to constraints to get dual variable value
         self.employ_bin = self.model.addVars(self.t_size, vtype=GRB.CONTINUOUS, name = "Employ bin", lb =0) # UB moved to constraints to get dual variable value
         self.employ_bin_granular = self.model.addVars(self.t_size, self.t_size, vtype=GRB.CONTINUOUS, name="Employ bin gran", lb=0, ub=1)
-
 
     """
     Objective
@@ -274,6 +274,34 @@ class LShapedSubProblem(Model):
             for t in range(t_hat, min(t_hat + parameters.max_periods_deployed, self.t_size + 1)):
                 rho_5[t_hat].append(self.model.getConstrByName(f"MAB_constraints[{t_hat},{t}]").getAttr("Pi"))
         return LShapedSubProblemDualVariables(rho_1, rho_2, rho_3, rho_4, rho_5, rho_6, rho_7)
+
+    def print_variable_values(self):
+        f_list = []
+        for f in range(self.f_size):
+            t_hat_list = []
+            for t_hat in range(self.t_size):
+                t_list = []
+                for t in range(self.t_size):
+                    x = self.x[f,t_hat, t].x
+                    w = self.w[f,t_hat, t].x
+                    employ_bin = self.employ_bin[t].x
+                    employ_bin_gran = self.employ_bin_granular[t_hat,t].x
+                    harvest_bin = self.harvest_bin[t].x
+                    variable_list = [x, w, employ_bin, employ_bin_gran, harvest_bin]
+
+                    t_list.append(variable_list)
+                colums = ["X", "W", "Employ_bin", "Employ_bin_gran", "Harvest_bin"]
+                t_hat_list.append(pd.DataFrame(t_list, columns=colums, index=[i for i in range(self.t_size)]))
+            f_list.append(pd.concat(t_hat_list, keys=[i for i in range(self.t_size)]))
+        df = pd.concat(f_list, keys=[i for i in range(self.f_size)])
+        df_filtered = df.loc[~(df[["X", "W"]] == 0).all(axis=1)]
+        df_filtered.to_excel("variable_values.xlsx")
+
+
+
+
+
+
 
 
 if __name__ == "__main__":

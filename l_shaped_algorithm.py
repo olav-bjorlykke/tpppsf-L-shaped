@@ -51,6 +51,8 @@ class LShapedAlgoritm:
 
             new_master_problem_solution = master_problem.get_variable_values()
         new_master_problem_solution.print()
+        for s in range(configs.NUM_SCENARIOS):
+            subproblems[s].print_variable_values()
         return master_problem.model.getAttr("ObjVal")
 
 
