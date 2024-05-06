@@ -180,7 +180,7 @@ class LShapedSubProblem(Model):
             self.growth_factors.loc[(self.smolt_weights[f], f"Scenario {self.scenario}", t_hat)][t] - self.w[f, t_hat, t]
             for t_hat in range(self.t_size)
             for f in range(self.f_size)
-            for t in range(min(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat], self.t_size),
+            for t in range(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat],
                            min(t_hat + parameters.max_periods_deployed, self.t_size))
 
         )
@@ -190,14 +190,14 @@ class LShapedSubProblem(Model):
             self.employ_bin_granular[t_hat, t] - gp.quicksum(
                 self.x[f, t_hat, t] for f in range(self.f_size)) <= 0
             for t_hat in range(self.t_size)
-            for t in range(self.t_size)
+            for t in range(t_hat, min(t_hat + parameters.max_periods_deployed, self.t_size))
         )
 
         self.model.addConstrs(
             gp.quicksum(self.x[f, t_hat, t] for f in range(self.f_size)) - self.employ_bin_granular[
                 t_hat, t] * parameters.bigM <= 0
             for t_hat in range(self.t_size)
-            for t in range(self.t_size)
+            for t in range(t_hat, min(t_hat + parameters.max_periods_deployed, self.t_size))
         )
 
         self.model.addConstrs(
@@ -206,7 +206,6 @@ class LShapedSubProblem(Model):
             for t in range(self.t_size)
         )
 
-    
     #84
 
     def add_MAB_requirement_constraint(self):

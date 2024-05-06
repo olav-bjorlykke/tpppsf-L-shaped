@@ -188,3 +188,7 @@ elif configs.INSTANCE == "LARGE":
 
 else:
     print("Instance set does not match any, set to default")
+
+
+if __name__ == "__main__":
+    site_4.growth_sets.to_excel("growth_sets.xlsx")

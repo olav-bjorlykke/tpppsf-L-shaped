@@ -196,7 +196,6 @@ class Site:
         growth_frame_all_scenarios = pd.concat(data_storage, keys=scenarios_temperatures.index)
         return growth_frame_all_scenarios
 
-
     def calculate_growth_factor(self, weight, TGC, temperature, duration): #TODO:put into its own class or set of functions
         """
         A function for calculating the growth factor for one period
