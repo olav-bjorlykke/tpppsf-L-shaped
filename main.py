@@ -16,5 +16,4 @@ def main():
     pass
 
 if __name__ == '__main__':
-    model = Model(sites.SITE_LIST)
-    model.solve_and_print_model()
+    sites.SITE_LIST[0].growth_sets.to_excel("growth_sets.xlsx")
