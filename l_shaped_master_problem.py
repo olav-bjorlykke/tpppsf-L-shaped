@@ -153,7 +153,6 @@ class LShapedMasterProblem():
             for t in range(self.t_size)
         )
 
-
     def get_variable_values(self):
         """
         Iterates through all variables in the solution and returns a data class containing their values
@@ -179,4 +178,8 @@ class LShapedMasterProblem():
             deploy_bin_values.append(self.deploy_bin[self.l, t].getAttr("x"))
         #Returns a data_class with the stores variables
         return LShapedMasterProblemVariables(self.l, y_values, deploy_bin_values, deploy_type_bin_values)
+
+    def print_variable_values(self):
+        variables = self.get_variable_values()
+        variables.print()
         

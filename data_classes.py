@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import pandas as pd
 
 @dataclass
 class LShapedMasterProblemVariables():
@@ -6,6 +7,15 @@ class LShapedMasterProblemVariables():
     y: list[list[float]] # index order f, t. same unique l to be added in all subproblems from a master problem
     deploy_bin: list[int] # index order t. same unique l to be added in all subproblems from a master problem
     deploy_type_bin: list[list[int]] # index order f, t. same unique l to be added in all subproblems from a master problem
+
+    def print(self):
+        print(f"Location {self.l}")
+        print(f"deploy amounts =\n {pd.DataFrame(self.y)}")
+        print(f"deploy bin =\n {pd.Series(self.deploy_bin)}")
+
+        pd.DataFrame(self.y).to_excel(f"master_variables_site{self.l}.xlsx", index=False, sheet_name="deploy_amounts")
+        pd.Series(self.deploy_bin).to_excel(f"master_variables_site{self.l}.xlsx", index=False, sheet_name="deploy_bins")
+
     
 
 @dataclass
