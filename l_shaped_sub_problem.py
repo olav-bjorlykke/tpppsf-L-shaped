@@ -44,6 +44,7 @@ class LShapedSubProblem(Model):
         self.add_inactivity_constraint()
         self.add_harvest_forcing_constraints()
         self.add_employment_bin_forcing_constraints()
+        self.add_valid_inequality_sub_problem()
 
     def update_model(self, fixed_variables):
         self.fixed_variables = fixed_variables
@@ -56,6 +57,7 @@ class LShapedSubProblem(Model):
         self.add_inactivity_constraint()
         self.add_harvest_forcing_constraints()
         self.add_employment_bin_forcing_constraints()
+        self.add_valid_inequality_sub_problem()
         #TODO: Check if we need to update all constraints or just a subset
 
     def solve(self):
@@ -78,6 +80,7 @@ class LShapedSubProblem(Model):
         self.z_slack_1 = self.model.addVars(self.t_size,vtype=GRB.CONTINUOUS, lb = 0, name = "z_slack_1")
         self.z_slack_2 = self.model.addVars(self.t_size, self.t_size + 1, vtype=GRB.CONTINUOUS, lb=0, name="z_slack_2")
         self.z_slack_3 = self.model.addVars(self.t_size, vtype=GRB.CONTINUOUS, lb=0, name="z_slack_3")
+        self.z_slack_4 = self.model.addVars(self.t_size, vtype=GRB.CONTINUOUS, lb=0, name="z_slack_4")
         # Declaring, the binary variables from the original problem as continuous due to the LP Relaxation
         # These must be continous for us to be able to fetch the dual values out
         self.harvest_bin = self.model.addVars(self.t_size, vtype=GRB.CONTINUOUS, name = "harvest_bin", lb=0) # UB moved to constraints to get dual variable value
@@ -100,6 +103,7 @@ class LShapedSubProblem(Model):
             - Penalty_parameter * gp.quicksum(self.z_slack_1[t] for t in range(self.t_size)) #TODO: Change to the actual set used
             - Penalty_parameter * gp.quicksum(self.z_slack_2[t_hat, t] for t_hat in range(self.t_size) for t in range(t_hat, self.t_size))
             - Penalty_parameter * gp.quicksum(self.z_slack_3[t] for t in range(self.t_size))
+            - Penalty_parameter * gp.quicksum(self.z_slack_4[t] for t in range(self.t_size))
             # NOTE: This is not the range specified in the formulation, but it should work since
             # the slack variable will always be 0 if it can with this formulation of the max problem.
             #TODO: Change to a more specific range if necesarry.
@@ -120,7 +124,6 @@ class LShapedSubProblem(Model):
             <= parameters.min_fallowing_periods * (1 - self.fixed_variables.deploy_bin[t])
             for t in range(parameters.min_fallowing_periods, self.t_size)), name="fallowing_constriants_1"
         )
-
 
     #75
     def add_inactivity_constraint(self):
@@ -150,7 +153,6 @@ class LShapedSubProblem(Model):
             for t in range(self.t_size)
         )
         pass
-
     #78 - 81
     def add_biomass_development_constraints(self):
         self.model.addConstrs(( # This is constraint (5.9) - which ensures that biomass x = biomass deployed y
@@ -205,8 +207,12 @@ class LShapedSubProblem(Model):
                 self.employ_bin_granular[t_hat, t] for t_hat in range(self.t_size)) == 0
             for t in range(self.t_size)
         )
-
     #84
+    def add_valid_inequality_sub_problem(self):
+        self.model.addConstrs(
+            self.employ_bin[t - 1] + self.employ_bin[t - 2] + gp.quicksum(self.fixed_variables.y[f][t] for f in range(self.f_size)) - self.z_slack_4[t] <= 1
+            for t in range(2, self.t_size)
+        )
 
     def add_MAB_requirement_constraint(self):
         self.model.addConstrs((
@@ -301,7 +307,7 @@ class LShapedSubProblem(Model):
                 t_hat_list.append(pd.DataFrame(t_list, columns=colums, index=[i for i in range(self.t_size)]))
             f_list.append(pd.concat(t_hat_list, keys=[i for i in range(self.t_size)]))
         df = pd.concat(f_list, keys=[i for i in range(self.f_size)])
-        df_filtered = df.loc[~(df[["X", "W"]] == 0).all(axis=1)]
+        df_filtered = df.loc[~(df[["X", "W", "Employ_bin_gran"]] == 0).all(axis=1)]
         df_filtered.to_excel("variable_values.xlsx")
 
 

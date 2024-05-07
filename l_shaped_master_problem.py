@@ -146,8 +146,8 @@ class LShapedMasterProblem():
         bigM = 50
         self.model.addConstrs(
             gp.quicksum(
-                self.deploy_bin[0,tau] for tau in range(t + 1, self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {s}")][t])
-            ) <= (1 - self.deploy_bin[0,t])*50 #50 should be and adequately large bigM
+                self.deploy_bin[0,tau] for tau in range(t + 1, min(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {s}")][t] + parameters.min_fallowing_periods + 1, self.t_size))
+            ) <= (1 - self.deploy_bin[0,t])*bigM #50 should be and adequately large bigM
             for s in range(self.s_size)
             for f in range(self.f_size)
             for t in range(self.t_size)
