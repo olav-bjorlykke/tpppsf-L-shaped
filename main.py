@@ -12,8 +12,14 @@ import time
 import initialization.sites as sites
 
 
+def run_monolithic_model():
+    model = Model(sites.SITE_LIST[0])
+    model.solve_and_print_model()
+
 def main():
     pass
 
 if __name__ == '__main__':
-    sites.SITE_LIST[0].growth_sets.to_excel("growth_sets.xlsx")
+    run_monolithic_model()
+
+
