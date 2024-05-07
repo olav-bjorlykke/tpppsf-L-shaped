@@ -153,7 +153,6 @@ class LShapedSubProblem(Model):
             for t in range(self.t_size)
         )
         pass
-
     #78 - 81
     def add_biomass_development_constraints(self):
         self.model.addConstrs(( # This is constraint (5.9) - which ensures that biomass x = biomass deployed y
@@ -208,14 +207,12 @@ class LShapedSubProblem(Model):
                 self.employ_bin_granular[t_hat, t] for t_hat in range(self.t_size)) == 0
             for t in range(self.t_size)
         )
-
     #84
     def add_valid_inequality_sub_problem(self):
         self.model.addConstrs(
             self.employ_bin[t - 1] + self.employ_bin[t - 2] + gp.quicksum(self.fixed_variables.y[f][t] for f in range(self.f_size)) - self.z_slack_4[t] <= 1
             for t in range(2, self.t_size)
         )
-
 
     def add_MAB_requirement_constraint(self):
         self.model.addConstrs((
