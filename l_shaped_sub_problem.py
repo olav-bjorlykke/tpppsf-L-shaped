@@ -73,7 +73,7 @@ class LShapedSubProblem(Model):
         self.add_inactivity_constraint()
         self.add_harvest_forcing_constraints()
         self.add_employment_bin_forcing_constraints()
-        #self.add_valid_inequality_sub_problem()
+        self.add_valid_inequality_sub_problem()
 
     def solve(self):
         self.model.optimize()
@@ -94,8 +94,6 @@ class LShapedSubProblem(Model):
         #Declaring slack variables
         self.z_slack_1 = self.model.addVars(self.t_size,vtype=GRB.CONTINUOUS, lb = 0, name = "z_slack_1")
         self.z_slack_2 = self.model.addVars(self.t_size, self.t_size + 1, vtype=GRB.CONTINUOUS, lb=0, name="z_slack_2")
-        self.z_slack_3 = self.model.addVars(self.t_size, vtype=GRB.CONTINUOUS, lb=0, name="z_slack_3")
-        self.z_slack_4 = self.model.addVars(self.t_size, vtype=GRB.CONTINUOUS, lb=0, name="z_slack_4")
         # Declaring, the binary variables from the original problem as continuous due to the LP Relaxation
         # These must be continous for us to be able to fetch the dual values out
         self.harvest_bin = self.model.addVars(self.t_size, vtype=GRB.CONTINUOUS, name = "harvest_bin", lb=0) # UB moved to constraints to get dual variable value
@@ -115,8 +113,6 @@ class LShapedSubProblem(Model):
         # Declaring slack variables
         self.z_slack_1 = self.model.addVars(self.t_size, vtype=GRB.CONTINUOUS, lb=0, ub=0, name="z_slack_1")
         self.z_slack_2 = self.model.addVars(self.t_size, self.t_size + 1, vtype=GRB.CONTINUOUS, lb=0, ub=0, name="z_slack_2")
-        self.z_slack_3 = self.model.addVars(self.t_size, vtype=GRB.CONTINUOUS, lb=0, ub=0, name="z_slack_3")
-        self.z_slack_4 = self.model.addVars(self.t_size, vtype=GRB.CONTINUOUS, lb=0, ub=0, name="z_slack_4")
         # Declaring, the binary variables from the original problem as continuous due to the LP Relaxation
         # These must be continous for us to be able to fetch the dual values out
         self.harvest_bin = self.model.addVars(self.t_size, vtype=GRB.BINARY, name="harvest_bin", lb=0)
@@ -139,8 +135,6 @@ class LShapedSubProblem(Model):
 
             - penalty_parameter * gp.quicksum(self.z_slack_1[t] for t in range(self.t_size)) #TODO: Change to the actual set used
             - penalty_parameter * gp.quicksum(self.z_slack_2[t_hat, t] for t_hat in range(self.t_size) for t in range(t_hat, self.t_size))
-            - penalty_parameter * gp.quicksum(self.z_slack_3[t] for t in range(self.t_size))
-            - penalty_parameter * gp.quicksum(self.z_slack_4[t] for t in range(self.t_size))
             # NOTE: This is not the range specified in the formulation, but it should work since
             # the slack variable will always be 0 if it can with this formulation of the max problem.
             #TODO: Change to a more specific range if necesarry.
@@ -258,7 +252,7 @@ class LShapedSubProblem(Model):
     #84
     def add_valid_inequality_sub_problem(self):
         self.model.addConstrs(
-            self.employ_bin[t - 1] + self.employ_bin[t - 2] + gp.quicksum(self.fixed_variables.y[f][t] for f in range(self.f_size)) - self.z_slack_4[t] <= 1
+            0.5 * (self.employ_bin[t - 1] + self.employ_bin[t - 2]) + self.fixed_variables.deploy_bin[t]<= 1
             for t in range(2, self.t_size)
         )
 
@@ -350,12 +344,11 @@ class LShapedSubProblem(Model):
                     harvest_bin = self.harvest_bin[t].x
                     z_slack_1 = self.z_slack_1[t].x
                     z_slack_2 = self.z_slack_2[t_hat,t].x
-                    z_slack_3 = self.z_slack_3[t].x
-                    z_slack_4 = self.z_slack_4[t].x
-                    variable_list = [x, w, employ_bin, employ_bin_gran, harvest_bin, z_slack_1, z_slack_2, z_slack_3, z_slack_4]
+
+                    variable_list = [x, w, employ_bin, employ_bin_gran, harvest_bin, z_slack_1, z_slack_2]
 
                     t_list.append(variable_list)
-                colums = ["X", "W", "Employ_bin", "Employ_bin_gran", "Harvest_bin", "z_slack_1", "z_slack_2", "z_slack_3", "z_slack_4"]
+                colums = ["X", "W", "Employ_bin", "Employ_bin_gran", "Harvest_bin", "z_slack_1", "z_slack_2"]
                 t_hat_list.append(pd.DataFrame(t_list, columns=colums, index=[i for i in range(self.t_size)]))
             f_list.append(pd.concat(t_hat_list, keys=[i for i in range(self.t_size)]))
         df = pd.concat(f_list, keys=[i for i in range(self.f_size)])
