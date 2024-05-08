@@ -31,4 +31,5 @@ scenario_probabilities = [0.1, 0.8, 0.1]
 eoh_down_ratio = 0.6
 eoh_up_ratio = 1.4
 MAB_util_end = 0.3
+penalty_parameter_L_sub = 1000 #This should not be very hidh -> It will lead to numeric instability
 

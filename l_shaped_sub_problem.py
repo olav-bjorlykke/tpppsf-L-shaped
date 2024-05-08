@@ -128,7 +128,7 @@ class LShapedSubProblem(Model):
     Objective
     """
     def add_objective(self):
-        Penalty_parameter = 100000000000
+        penalty_parameter = parameters.penalty_parameter_L_sub #This should not be very high -> It will lead to numeric instability
         self.model.setObjective(
             gp.quicksum(self.w[f,t_hat,t]
                         for f in range(self.f_size)
@@ -137,10 +137,10 @@ class LShapedSubProblem(Model):
                                        min(t_hat + parameters.max_periods_deployed, self.t_size))
                         )
 
-            - Penalty_parameter * gp.quicksum(self.z_slack_1[t] for t in range(self.t_size)) #TODO: Change to the actual set used
-            - Penalty_parameter * gp.quicksum(self.z_slack_2[t_hat, t] for t_hat in range(self.t_size) for t in range(t_hat, self.t_size))
-            - Penalty_parameter * gp.quicksum(self.z_slack_3[t] for t in range(self.t_size))
-            - Penalty_parameter * gp.quicksum(self.z_slack_4[t] for t in range(self.t_size))
+            - penalty_parameter * gp.quicksum(self.z_slack_1[t] for t in range(self.t_size)) #TODO: Change to the actual set used
+            - penalty_parameter * gp.quicksum(self.z_slack_2[t_hat, t] for t_hat in range(self.t_size) for t in range(t_hat, self.t_size))
+            - penalty_parameter * gp.quicksum(self.z_slack_3[t] for t in range(self.t_size))
+            - penalty_parameter * gp.quicksum(self.z_slack_4[t] for t in range(self.t_size))
             # NOTE: This is not the range specified in the formulation, but it should work since
             # the slack variable will always be 0 if it can with this formulation of the max problem.
             #TODO: Change to a more specific range if necesarry.
