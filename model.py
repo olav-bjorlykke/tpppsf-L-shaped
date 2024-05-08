@@ -62,7 +62,7 @@ class Model:
         self.model = gp.Model(f"Single site solution")
 
         #Declaing variables
-        self.declare_variables()
+        self.declare_lp_variables()
 
         #Setting objective
         self.set_objective()
@@ -82,6 +82,7 @@ class Model:
         self.add_x_forcing_constraint()
         self.add_up_branching_constraints()
         self.add_down_branching_constraints()
+        self.add_valid_inequality()
 
         #Running gurobi to optimize model
         self.model.optimize()
@@ -150,6 +151,7 @@ class Model:
         self.set_objective()
 
         # Adding constraints
+
         self.add_smolt_deployment_constraints()
         self.add_fallowing_constraints()
         self.add_inactivity_constraints()
@@ -188,9 +190,25 @@ class Model:
         # Declaring the binary decision variables
         self.deploy_type_bin = self.model.addVars(self.l_size, self.f_size, self.t_size, vtype=GRB.BINARY)
         self.deploy_bin = self.model.addVars(self.l_size, self.t_size, vtype=GRB.BINARY)
-        self.harvest_bin = self.model.addVars(self.l_size, self.t_size, self.s_size, vtype=GRB.CONTINUOUS)
-        self.employ_bin = self.model.addVars(self.l_size, self.t_size, self.s_size, vtype=GRB.CONTINUOUS)
-        self.employ_bin_granular = self.model.addVars(self.l_size, self.t_size, self.t_size, self.s_size, vtype=GRB.CONTINUOUS)
+        self.harvest_bin = self.model.addVars(self.l_size, self.t_size, self.s_size, vtype=GRB.BINARY)
+        self.employ_bin = self.model.addVars(self.l_size, self.t_size, self.s_size, vtype=GRB.BINARY)
+        self.employ_bin_granular = self.model.addVars(self.l_size, self.t_size, self.t_size, self.s_size, vtype=GRB.BINARY)
+
+    def declare_lp_variables(self):
+        self.x = self.model.addVars(self.l_size, self.f_size, self.t_size, self.t_size + 1, self.s_size,
+                                    vtype=GRB.CONTINUOUS, lb=0, name="X")
+        self.y = self.model.addVars(self.l_size, self.f_size, self.t_size, vtype=GRB.CONTINUOUS, lb=0, name="y")
+        self.w = self.model.addVars(self.l_size, self.f_size, self.t_size, self.t_size, self.s_size,
+                                    vtype=GRB.CONTINUOUS, lb=0, name="W")
+
+        # Declaring the binary decision variables
+        self.deploy_type_bin = self.model.addVars(self.l_size, self.f_size, self.t_size, vtype=GRB.BINARY)
+        self.deploy_bin = self.model.addVars(self.l_size, self.t_size, vtype=GRB.BINARY)
+        self.harvest_bin = self.model.addVars(self.l_size, self.t_size, self.s_size, vtype=GRB.CONTINUOUS, ub=1, lb=0)
+        self.employ_bin = self.model.addVars(self.l_size, self.t_size, self.s_size, vtype=GRB.CONTINUOUS, ub=1, lb=0)
+        self.employ_bin_granular = self.model.addVars(self.l_size, self.t_size, self.t_size, self.s_size,
+                                                      vtype=GRB.CONTINUOUS, ub=1, lb=0)
+
 
     """
     Objective setter functions
@@ -433,7 +451,6 @@ class Model:
             for s in range(self.s_size)
         )
 
-
     def add_MAB_requirement_constraint(self):
         self.model.addConstrs(
             gp.quicksum(self.x[l, f, t_hat, t, s] for f in range(self.f_size)) <= self.sites[l].MAB_capacity
@@ -544,6 +561,21 @@ class Model:
                 self.deploy_bin[0, indice] == 0, #l set to 0 as this should only be used when there is only one site
                 name = "Branching constraint"
             )
+
+
+    def add_valid_inequality(self):
+        bigM = 50
+        self.model.addConstrs(
+            gp.quicksum(
+                self.deploy_bin[l, tau] for tau in range(t + 1, min(
+                    self.growth_sets[l].loc[(self.smolt_weights[f], f"Scenario {s}")][
+                        t] + initialization.parameters.min_fallowing_periods + 1, self.t_size))
+            ) <= (1 - self.deploy_bin[l, t]) * bigM  # 50 should be and adequately large bigM
+            for s in range(self.s_size)
+            for f in range(self.f_size)
+            for t in range(self.t_size)
+            for l in range(self.l_size)
+        )
 
     """
     Printing and exporting functions

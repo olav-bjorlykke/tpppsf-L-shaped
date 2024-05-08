@@ -13,7 +13,7 @@ import initialization.sites as sites
 
 
 def run_monolithic_model():
-    model = Model(sites.SITE_LIST[0])
+    model = Model(sites.short_sites_list[0])
     model.solve_and_print_model()
 
 def main():
