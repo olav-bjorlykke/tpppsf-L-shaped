@@ -41,8 +41,8 @@ class LShapedMasterProblem():
         """
         self.theta = self.model.addVars(self.s_size, vtype=GRB.CONTINUOUS, lb=0, name="theta")
         self.y = self.model.addVars(1, self.f_size, self.t_size, vtype=GRB.CONTINUOUS, lb=0, name="y")
-        self.deploy_bin = self.model.addVars(1, self.t_size, vtype=GRB.BINARY, name="gamma") # 1 if smolt of any type is deplyed in t NOTE: No l-index as master problem for each l
-        self.deploy_type_bin = self.model.addVars(1, self.f_size, self.t_size, vtype=GRB.BINARY, name="delta") # 1 if smolt type f is deployed in t NOTE: No l-index as master problem for each l 
+        self.deploy_bin = self.model.addVars(1, self.t_size, vtype=GRB.BINARY, name="deploy_bin") # 1 if smolt of any type is deplyed in t NOTE: No l-index as master problem for each l
+        self.deploy_type_bin = self.model.addVars(1, self.f_size, self.t_size, vtype=GRB.BINARY, name="deploy_type_bin") # 1 if smolt type f is deployed in t NOTE: No l-index as master problem for each l
 
     def set_objective(self):
         """
@@ -143,7 +143,7 @@ class LShapedMasterProblem():
         )
 
     def add_valid_inequality(self):
-        bigM = 50
+        bigM = parameters.valid_ineqaulity_lshaped_master_bigM
         self.model.addConstrs(
             gp.quicksum(
                 self.deploy_bin[0,tau] for tau in range(t + 1, min(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {s}")][t] + parameters.min_fallowing_periods + 1, self.t_size))
@@ -181,5 +181,5 @@ class LShapedMasterProblem():
 
     def print_variable_values(self):
         variables = self.get_variable_values()
-        variables.print()
+        variables.write_to_file()
         

@@ -32,4 +32,5 @@ eoh_down_ratio = 0.6
 eoh_up_ratio = 1.4
 MAB_util_end = 0.3
 penalty_parameter_L_sub = 1000 #This should not be very hidh -> It will lead to numeric instability
+valid_ineqaulity_lshaped_master_bigM = 60 #This must be higher than the max possible release periods -> Never more than 60
 
