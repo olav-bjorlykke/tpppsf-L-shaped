@@ -45,7 +45,7 @@ class LShapedSubProblem(Model):
         self.add_MAB_requirement_constraint()
         self.add_UB_constraints()
         self.add_inactivity_constraint()
-        self.add_harvest_forcing_constraints()
+        self.add_harvest_constraints()
         self.add_employment_bin_forcing_constraints()
         self.add_valid_inequality_sub_problem()
     def update_model(self, fixed_variables):
@@ -57,7 +57,7 @@ class LShapedSubProblem(Model):
         self.add_MAB_requirement_constraint()
         self.add_UB_constraints()
         self.add_inactivity_constraint()
-        self.add_harvest_forcing_constraints()
+        self.add_harvest_constraints()
         self.add_employment_bin_forcing_constraints()
         self.add_valid_inequality_sub_problem()
     def update_model_to_mip(self, fixed_variables):
@@ -72,7 +72,7 @@ class LShapedSubProblem(Model):
         self.add_MAB_requirement_constraint()
         self.add_UB_constraints()
         self.add_inactivity_constraint()
-        self.add_harvest_forcing_constraints()
+        self.add_harvest_constraints()
         self.add_employment_bin_forcing_constraints()
         self.add_valid_inequality_sub_problem()
     def solve(self):
@@ -168,7 +168,7 @@ class LShapedSubProblem(Model):
             # The sum function and therefore the t set is not implemented exactly like in the mathematical model, but functionality is the same
             for t in range(self.t_size - parameters.max_fallowing_periods)), name="inactivity_constraints"
         )
-    def add_harvest_forcing_constraints(self):
+    def add_harvest_constraints(self):
         self.model.addConstrs(
             gp.quicksum(
                 self.w[f, t_hat, t] for f in range(self.f_size) for t_hat in
