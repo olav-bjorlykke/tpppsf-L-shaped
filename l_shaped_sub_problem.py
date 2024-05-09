@@ -65,6 +65,7 @@ class LShapedSubProblem(Model):
         self.model.remove(self.model.getConstrs())
         self.model.remove(self.model.getVars())
         self.declare_mip_variables()
+        self.add_mip_objective()
         self.fixed_variables = fixed_variables
         self.add_fallowing_constraints()
         self.add_biomass_development_constraints()
@@ -150,7 +151,8 @@ class LShapedSubProblem(Model):
                         for t in
                         range(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat],
                               min(t_hat + parameters.max_periods_deployed, self.t_size))
-                        )
+                        ),
+            GRB.MAXIMIZE
         )
 
     """
@@ -294,6 +296,12 @@ class LShapedSubProblem(Model):
             for f in range(self.f_size)
             for t_hat in range(self.t_size)
             for t in range(min(t_hat + parameters.max_periods_deployed, self.t_size), self.t_size)
+        )
+
+    def add_eoh_test_mab(self):
+        self.model.addConstrs(
+            gp.quicksum(self.x[t_hat, 59] for t_hat in range(self.t_size)) > 500 * 1000
+
         )
 
 
