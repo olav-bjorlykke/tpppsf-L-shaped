@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import pandas as pd
+import initialization.configs as configs
 
 @dataclass
 class LShapedMasterProblemVariables():
@@ -8,13 +9,10 @@ class LShapedMasterProblemVariables():
     deploy_bin: list[int] # index order t. same unique l to be added in all subproblems from a master problem
     deploy_type_bin: list[list[int]] # index order f, t. same unique l to be added in all subproblems from a master problem
 
-    def print(self):
-        print(f"Location {self.l}")
-        print(f"deploy amounts =\n {pd.DataFrame(self.y)}")
-        print(f"deploy bin =\n {pd.Series(self.deploy_bin)}")
-
-        pd.DataFrame(self.y).to_excel(f"master_variables_site{self.l}.xlsx", index=False, sheet_name="deploy_amounts")
-        pd.Series(self.deploy_bin).to_excel(f"master_variables_site{self.l}.xlsx", index=False, sheet_name="deploy_bins")
+    def write_to_file(self):
+        writer = pd.ExcelWriter(f"{configs.OUTPUT_DIR}master_variables_site{self.l}.xlsx")
+        pd.DataFrame(self.y).to_excel(writer, index=False, sheet_name="deploy_amounts")
+        pd.Series(self.deploy_bin).to_excel(writer, index=False, sheet_name="deploy_bins")
 
     
 

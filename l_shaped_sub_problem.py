@@ -353,7 +353,7 @@ class LShapedSubProblem(Model):
             f_list.append(pd.concat(t_hat_list, keys=[i for i in range(self.t_size)]))
         df = pd.concat(f_list, keys=[i for i in range(self.f_size)])
         df_filtered = df.loc[~(df[["X", "W", "Employ_bin_gran"]] == 0).all(axis=1)]
-        df.to_excel(f"variable_values{self.scenario}.xlsx")
+        df_filtered.to_excel(f"{configs.OUTPUT_DIR}variable_values{self.scenario}.xlsx")
 
 
 
