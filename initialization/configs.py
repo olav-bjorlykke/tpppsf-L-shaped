@@ -12,7 +12,7 @@ def set_scenarios():
 INSTANCES = ["SMALL", "MEDIUM", "LARGE", "TEST"]
 INSTANCE = INSTANCES[set_instance()]
 NUM_SCENARIOS = set_scenarios()
-OUTPUT_DIR = f"./output/instance_{INSTANCE}_scenario_{NUM_SCENARIOS}"
+OUTPUT_DIR = f"./output/instance_{INSTANCE}_scenario_{NUM_SCENARIOS}/"
 NUM_SMOLT_TYPES = 1
 
 

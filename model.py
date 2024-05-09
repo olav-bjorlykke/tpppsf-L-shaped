@@ -37,9 +37,9 @@ class Model:
 
 
         #Setting variables to contain the size of sets
-        self.f_size = 1  #TODO: declare using the smolt set
+        self.f_size = configs.NUM_SMOLT_TYPES
         self.t_size = self.parameters.number_periods
-        self.s_size = initialization.configs.NUM_SCENARIOS  #TODO: len(parameters.scenario_probabilities)
+        self.s_size = initialization.configs.NUM_SCENARIOS
         self.l_size = len(self.sites)
 
         #Defining some variables from the data objects for easier reference
@@ -93,9 +93,49 @@ class Model:
             self.plot_solutions_x_values_per_site()
             self.plot_solutions_x_values_aggregated()
             self.iterations += 1
-            for v in self.model.getVars():
-                if v.X > 0:
-                    print(f'{v.varName} {v.X}')
+
+
+
+        #Putting solution into variables for export
+
+    def solve_as_single_site_mip(self):
+        """
+        This is the same as solve and print, but without the EOH constraint
+        :return:
+        """
+        self.model = gp.Model(f"Single site solution")
+
+        #Declaing variables
+        self.declare_variables()
+
+        #Setting objective
+        self.set_objective()
+
+        #Adding constraints
+        self.add_smolt_deployment_constraints()
+        self.add_fallowing_constraints()
+        self.add_inactivity_constraints()
+        self.add_harvesting_constraints()
+        self.add_biomass_development_constraints()
+        self.add_MAB_requirement_constraint()
+        self.add_initial_condition_constraint()
+        self.add_forcing_constraints()
+        self.add_MAB_company_requirement_constraint()
+        self.add_employ_bin_forcing_constraints()
+        self.add_x_forcing_constraint()
+        self.add_up_branching_constraints()
+        self.add_down_branching_constraints()
+        self.add_valid_inequality()
+
+        #Running gurobi to optimize model
+        self.model.optimize()
+
+        #Printing solution
+        if self.model.status == GRB.OPTIMAL:
+            self.print_solution_to_excel()
+            self.plot_solutions_x_values_per_site()
+            self.plot_solutions_x_values_aggregated()
+            self.iterations += 1
 
 
         #Putting solution into variables for export
@@ -233,6 +273,7 @@ class Model:
         )
 
     def set_decomped_objective(self):
+        #TODO: INVESTIGATE THIS WHEN ADAPTING TO COLUMN GENERATION
         if not self.MAB_shadow_prices_df.empty:
             self.model.setObjective(
                 # This is the objective (5.2) - which represents the objective for biomass maximization
@@ -267,6 +308,7 @@ class Model:
         This function can be implemented to create a zero column, to initialize the master problem with.
         :return:
         """
+        #TODO: RE-IMPLEMENT THIS FROM THE PROSJEKOPPGAVE DIR
         pass
 
 
@@ -343,7 +385,6 @@ class Model:
                 )
 
     def add_fallowing_constraints(self):
-        #Fixed
         self.model.addConstrs(
             # This is the constraint (5.6) - It ensures that the required fallowing is done before the deploy variable can be set to 1
             self.parameters.min_fallowing_periods * self.deploy_bin[l, t] + gp.quicksum(
@@ -354,7 +395,6 @@ class Model:
             for l in range(self.l_size)
         )
 
-        #Fixed
         self.model.addConstrs(
             # This is an additional constraint - ensuring that only 1 deployment happens during the initial possible deployment period TODO: See if this needs to be implemented in the math model
             gp.quicksum(self.deploy_bin[l,t] for t in range(self.parameters.min_fallowing_periods)) <= 1
@@ -368,7 +408,7 @@ class Model:
             gp.quicksum(self.employ_bin[l, tau, s] for tau in range(t, min(t + self.parameters.max_fallowing_periods, self.t_size))) >= 1
             # The sum function and therefore the t set is not implemented exactly like in the mathematical model, but functionality is the same
             for s in range(self.s_size)
-            for t in range(self.t_size)
+            for t in range(self.t_size - initialization.parameters.max_fallowing_periods)
             for l in range(self.l_size)
         )
 
@@ -402,7 +442,6 @@ class Model:
             for l in range(self.l_size)
         )
 
-        #Fixed
         self.model.addConstrs(  # This represents the constraint (5.10) - which ensures biomass growth in the growth period
             self.x[l, f, t_hat, t + 1, s] == (1 - self.parameters.expected_production_loss) * self.x[l, f, t_hat, t, s] *
             self.growth_factors[l].loc[(self.smolt_weights[f], f"Scenario {s}", t_hat)][t]
@@ -414,7 +453,6 @@ class Model:
             range(min(t_hat, self.t_size), min(self.growth_sets[l].loc[(self.smolt_weights[f], f"Scenario {s}")][t_hat], self.t_size))
         )
 
-        #Fixed
         self.model.addConstrs(  # This is the constraint (5.11) - Which tracks the biomass employed in the harvest period
             self.x[l, f, t_hat, t + 1, s] == (1 - self.parameters.expected_production_loss) * self.x[l,f, t_hat, t, s] *
             self.growth_factors[l].loc[(self.smolt_weights[f], f"Scenario {s}", t_hat)][t] - self.w[l,f, t_hat, t, s]
@@ -451,6 +489,14 @@ class Model:
             for s in range(self.s_size)
         )
 
+        self.model.addConstrs(
+            self.employ_bin_granular[l, t_hat, t, s] == 0
+            for l in range(self.l_size)
+            for t_hat in range(self.t_size)
+            for t in range(t_hat)
+            for s in range(self.s_size)
+        )
+
     def add_MAB_requirement_constraint(self):
         self.model.addConstrs(
             gp.quicksum(self.x[l, f, t_hat, t, s] for f in range(self.f_size)) <= self.sites[l].MAB_capacity
@@ -473,21 +519,12 @@ class Model:
             for s in range(self.s_size):
                 self.model.addConstr(
                     gp.quicksum(self.x[l, f, t_hat, 60, s] for l in range(self.l_size) for t_hat in range(60 - self.parameters.max_periods_deployed, 59) for f in range(self.f_size))
-                    >=
-                    self.parameters.eoh_down_ratio *
-                    gp.quicksum(self.y[l, f, 0] for l in range(self.l_size) for f in range(self.f_size))
+                    >= initialization.parameters.EOH_ratio_requirement * configs.MAB_COMPANY_LIMIT
                     , name="EOH down"
                 )
 
-            for s in range(self.s_size):
-                self.model.addConstr(
-                    gp.quicksum(self.x[l, f, t_hat, 60, s] for l in range(self.l_size) for t_hat in range(60 - self.parameters.max_periods_deployed, 59) for f in range(self.f_size))
-                    >=
-                    self.parameters.MAB_company_limit * self.parameters.MAB_util_end
-                    , name="Second E0H down"
-                )
 
-    def add_initial_condition_constraint(self): #TODO: Add initial constraints
+    def add_initial_condition_constraint(self):
         for l in range(self.l_size):
             if self.sites[l].init_biomass > 1:
                 self.model.addConstr(
@@ -538,7 +575,6 @@ class Model:
         :return:
         """
 
-
         self.model.addConstrs(
             self.x[l, f, t_hat, t, s] <= 0
             for t_hat in range(self.t_size)
@@ -561,7 +597,6 @@ class Model:
                 self.deploy_bin[0, indice] == 0, #l set to 0 as this should only be used when there is only one site
                 name = "Branching constraint"
             )
-
 
     def add_valid_inequality(self):
         bigM = 50
