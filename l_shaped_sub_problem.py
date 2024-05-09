@@ -45,6 +45,7 @@ class LShapedSubProblem(Model):
         self.add_harvest_forcing_constraints()
         self.add_employment_bin_forcing_constraints()
         self.add_valid_inequality_sub_problem()
+        #self.add_testing_constraint()
 
     def update_model(self, fixed_variables):
         self.fixed_variables = fixed_variables
@@ -61,10 +62,10 @@ class LShapedSubProblem(Model):
         #TODO: Check if we need to update all constraints or just a subset
 
     def update_model_to_mip(self, fixed_variables):
-        self.declare_mip_variables()
-        self.fixed_variables = fixed_variables
         self.model.remove(self.model.getConstrs())
         self.model.remove(self.model.getVars())
+        self.declare_mip_variables()
+        self.fixed_variables = fixed_variables
         self.add_fallowing_constraints()
         self.add_biomass_development_constraints()
         self.add_w_forcing_constraint()
@@ -174,7 +175,7 @@ class LShapedSubProblem(Model):
             gp.quicksum(self.employ_bin[tau] for tau in
                         range(t, min(t + parameters.max_fallowing_periods, self.t_size))) >= 1
             # The sum function and therefore the t set is not implemented exactly like in the mathematical model, but functionality is the same
-            for t in range(self.t_size)), name="inactivity_constraints"
+            for t in range(self.t_size - parameters.max_fallowing_periods)), name="inactivity_constraints"
         )
 
     #76 - 77
@@ -234,20 +235,26 @@ class LShapedSubProblem(Model):
             self.employ_bin_granular[t_hat, t] - gp.quicksum(
                 self.x[f, t_hat, t] for f in range(self.f_size)) <= 0
             for t_hat in range(self.t_size)
-            for t in range(t_hat, min(t_hat + parameters.max_periods_deployed, self.t_size))
+            for t in range(t_hat, self.t_size)
         )
 
         self.model.addConstrs(
             gp.quicksum(self.x[f, t_hat, t] for f in range(self.f_size)) - self.employ_bin_granular[
                 t_hat, t] * parameters.bigM <= 0
             for t_hat in range(self.t_size)
-            for t in range(t_hat, min(t_hat + parameters.max_periods_deployed, self.t_size))
+            for t in range(t_hat, self.t_size)
         )
 
         self.model.addConstrs(
             self.employ_bin[t] - gp.quicksum(
                 self.employ_bin_granular[t_hat, t] for t_hat in range(self.t_size)) == 0
             for t in range(self.t_size)
+        )
+
+        self.model.addConstrs(
+            self.employ_bin_granular[t_hat, t] == 0
+            for t_hat in range(self.t_size)
+            for t in range(t_hat)
         )
     #84
     def add_valid_inequality_sub_problem(self):
@@ -289,22 +296,6 @@ class LShapedSubProblem(Model):
             for t in range(min(t_hat + parameters.max_periods_deployed, self.t_size), self.t_size)
         )
 
-    def add_x_forcing_constraint(self):
-        """
-        self.model.addConstrs(
-            self.x[f, t_hat, t] <= 0
-            for t_hat in range(self.t_size)
-            for t in range(0, t_hat)
-            for f in range(self.f_size)
-        )
-        :return:
-        """
-
-        self.model.addConstrs(
-            self.x[f, t_hat, 59] <= 0
-            for t_hat in range(self.t_size - 1)
-            for f in range(self.f_size)
-        )
 
     def get_dual_values(self):
         rho_1 = []
@@ -320,8 +311,9 @@ class LShapedSubProblem(Model):
             rho_2.append([])
             for t in range(self.t_size):
                 rho_2[f].append(self.model.getConstrByName(f"biomass_development_constraints_1[{f},{t}]").getAttr("Pi"))
-        for t in range(self.t_size):
+        for t in range(self.t_size - parameters.max_fallowing_periods):
             rho_3.append(self.model.getConstrByName(f"inactivity_constraints[{t}]").getAttr("Pi"))
+        for t in range(self.t_size):
             rho_6.append(self.model.getConstrByName(f"harvest_bin_UB[{t}]").getAttr("Pi"))
             rho_7.append(self.model.getConstrByName(f"employ_bin_UB[{t}]").getAttr("Pi"))
         for t_hat in range(self.t_size):
@@ -353,7 +345,7 @@ class LShapedSubProblem(Model):
             f_list.append(pd.concat(t_hat_list, keys=[i for i in range(self.t_size)]))
         df = pd.concat(f_list, keys=[i for i in range(self.f_size)])
         df_filtered = df.loc[~(df[["X", "W", "Employ_bin_gran"]] == 0).all(axis=1)]
-        df_filtered.to_excel(f"variable_values{self.scenario}.xlsx")
+        df.to_excel(f"variable_values{self.scenario}.xlsx")
 
 
 

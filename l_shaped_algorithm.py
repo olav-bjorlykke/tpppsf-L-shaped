@@ -52,7 +52,7 @@ class LShapedAlgoritm:
 
             new_master_problem_solution = master_problem.get_variable_values() #TODO: See if there is anoter check that we should do
 
-        print("#### trying to solve as MIP #####")
+
         for s in range(configs.NUM_SCENARIOS):
             print(s)
             subproblems[s].update_model_to_mip(new_master_problem_solution)
@@ -60,6 +60,9 @@ class LShapedAlgoritm:
             if subproblems[s].model.Status == GRB.INFEASIBLE or subproblems[s].model.Status == GRB.UNBOUNDED:
                 subproblems[s].model.computeIIS()
                 subproblems[s].model.write("model.ilp")
+
+        print("#### trying to solve as MIP #####")
+
 
         new_master_problem_solution.print()
         for s in range(configs.NUM_SCENARIOS):

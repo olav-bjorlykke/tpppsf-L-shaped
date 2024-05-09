@@ -130,7 +130,7 @@ class LShapedMasterProblem():
                 + 
                 gp.quicksum(gp.quicksum(dual_variables[s].rho_2[f][t] * self.y[f, self.l, t] for f in range(self.f_size)) for t in range(self.t_size))
                 +
-                gp.quicksum(dual_variables[s].rho_3[t] for t in range(self.t_size))
+                gp.quicksum(dual_variables[s].rho_3[t] for t in range(self.t_size - parameters.max_fallowing_periods))
                 +
                 dual_variables[s].rho_4
                 +
