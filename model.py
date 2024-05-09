@@ -62,7 +62,7 @@ class Model:
         self.model = gp.Model(f"Single site solution")
 
         #Declaing variables
-        self.declare_lp_variables()
+        self.declare_variables()
 
         #Setting objective
         self.set_objective()
