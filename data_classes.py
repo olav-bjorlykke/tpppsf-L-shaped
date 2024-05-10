@@ -15,7 +15,6 @@ class LShapedMasterProblemVariables():
         pd.DataFrame(self.y).to_excel(writer, index=False, sheet_name="deploy_amounts")
         pd.Series(self.deploy_bin).to_excel(writer, index=False, sheet_name="deploy_bins")
 
-    
 
 @dataclass
 class LShapedSubProblemDualVariables(): 
