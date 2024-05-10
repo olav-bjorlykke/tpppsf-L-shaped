@@ -1,8 +1,18 @@
+import gurobipy as gp
+from gurobipy import GRB
+import initialization.parameters as parameters
+import initialization.configs as configs
+
 
 
 class CGMasterProblem:
     def __init__(self):
-        pass
+        self.iterations_k = 0
+        self.l_size = configs.NUM_LOCATIONS
+        self.f_size = configs.NUM_SMOLT_TYPES
+        self.t_size = parameters.number_periods
+        self.s_size = configs.NUM_SCENARIOS
+        self.columns = {} #dict, key = iterations, item = list of columns where index is l (site)
 
     """
     Initializing and updating model
@@ -16,17 +26,18 @@ class CGMasterProblem:
         pass
 
     def declare_variables(self):
-        self.lambda_var = self.model.addVars(len(self.locations_l), len(self.iterations_k), vtype=GRB.CONTINUOUS, lb=0)
-        self.penalty_var = self.model.addVars(len(self.locations_l))  # TODO: remove this variable
+        self.lambda_var = self.model.addVars(configs.NUM_LOCATIONS, self.iterations_k, vtype=GRB.CONTINUOUS, lb=0)
+        
+        # Declaring the tracking variables
+        self.y = self.model.addVars(self.f_size, self.t_size, vtype=GRB.CONTINUOUS, lb=0)
+        self.x = self.model.addVars(self.l_size, self.f_size, self.t_size, self.t_size+1, self.s_size, vtype=GRB.CONTINUOUS, lb=0)
+        self.w = self.model.addVars(self.l_size, self.f_size, self.t_size, self.t_size, self.s_size, vtype=GRB.CONTINUOUS, lb=0)
 
-        # Declaring the binary tracking variables
-        self.deploy_bin = self.model.addVars(len(self.locations_l), len(self.periods_t), vtype=GRB.CONTINUOUS)
-        self.deploy_type_bin = self.model.addVars(len(self.locations_l), len(self.smolt_types_f), len(self.periods_t),
-                                                  vtype=GRB.CONTINUOUS)
-        self.harvest_bin = self.model.addVars(len(self.locations_l), len(self.smolt_types_f), 61, 61,
-                                              len(self.scenarios_s), vtype=GRB.CONTINUOUS)
-        self.employ_bin = self.model.addVars(len(self.locations_l), len(self.smolt_types_f), 61, 61,
-                                             len(self.scenarios_s), vtype=GRB.CONTINUOUS)
+        self.deploy_bin = self.model.addVars(self.l_size, self.t_size, vtype=GRB.CONTINUOUS, lb=0, ub=1)
+        self.deploy_type_bin = self.model.addVars(self.l_size, self.f_size, self.t_size, vtype=GRB.CONTINUOUS, lb=0, ub=1)
+        self.employ_bin = self.model.addVars(self.t_size, self.s_size, vtype=GRB.CONTINUOUS, lb=0, ub=1)
+        self.employ_bin_granular = self.model.addVars(self.t_size, self.t_size, self.s_size, vtype=GRB.CONTINUOUS, lb=0, ub=1)
+        self.harvest_bin = self.model.addVars(self.t_size, self.s_size, vtype=GRB.CONTINUOUS, lb=0, ub=1)
 
     def solve(self):
         pass
@@ -36,7 +47,6 @@ class CGMasterProblem:
     """
     def set_objective(self):
         pass
-
 
     """
     Add constraints
