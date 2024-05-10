@@ -39,17 +39,17 @@ class CGDualVariablesFromMaster():
 
 @dataclass
 class DeployPeriodVariables():
-    y: list[list[float]] = field(default_factory= lambda: [[0.0 for t in range(parameters.max_periods_deployed)] for f in range(configs.NUM_SMOLT_TYPES)])  # Index order: f, t
-    x: list[list[list[float]]] = field(default_factory=lambda: [[[0.0 for s in range(configs.NUM_SCENARIOS)] for t in range(parameters.max_periods_deployed)] for f in range(configs.NUM_SMOLT_TYPES)])# Index order: f, t, s
-    w: list[list[list[float]]] = field(default_factory=lambda: [[[0.0 for s in range(configs.NUM_SCENARIOS)] for t in range(parameters.max_periods_deployed)] for f in range(configs.NUM_SMOLT_TYPES)]) #Index order: f, t, s
-    deploy_bin: list[float] = field(default_factory=lambda: [0.0 for t in range(parameters.max_periods_deployed)]) #Index order: t
-    deploy_type_bin: list[list[float]] = field(default_factory=lambda: [[0.0 for t in range(parameters.max_periods_deployed)] for f in range(configs.NUM_SMOLT_TYPES)])#Index order: f, t
-    employ_bin: list[list[float]] = field(default_factory=lambda:[[0.0 for s in range(configs.NUM_SCENARIOS)]for t in range(parameters.max_periods_deployed)]) #Index order: t, s
-    employ_bin_granular: list[list[float]] = field(default_factory=lambda:[[0.0 for s in range(configs.NUM_SCENARIOS)]for t in range(parameters.max_periods_deployed)]) #Index order: t, s
-    harvest_bin: list[list[float]] = field(default_factory=lambda:[[0.0 for s in range(configs.NUM_SCENARIOS)]for t in range(parameters.max_periods_deployed)]) #Index order: t, s
+    y: list[list[float]] = field(default_factory= lambda: [[0.0 for t in range(parameters.number_periods)] for f in range(configs.NUM_SMOLT_TYPES)])  # Index order: f, t
+    x: list[list[list[float]]] = field(default_factory=lambda: [[[0.0 for s in range(configs.NUM_SCENARIOS)] for t in range(parameters.number_periods)] for f in range(configs.NUM_SMOLT_TYPES)])# Index order: f, t, s
+    w: list[list[list[float]]] = field(default_factory=lambda: [[[0.0 for s in range(configs.NUM_SCENARIOS)] for t in range(parameters.number_periods)] for f in range(configs.NUM_SMOLT_TYPES)]) #Index order: f, t, s
+    deploy_bin: list[float] = field(default_factory=lambda: [0.0 for t in range(parameters.number_periods)]) #Index order: t
+    deploy_type_bin: list[list[float]] = field(default_factory=lambda: [[0.0 for t in range(parameters.number_periods)] for f in range(configs.NUM_SMOLT_TYPES)])#Index order: f, t
+    employ_bin: list[list[float]] = field(default_factory=lambda:[[0.0 for s in range(configs.NUM_SCENARIOS)]for t in range(parameters.number_periods)]) #Index order: t, s
+    employ_bin_granular: list[list[float]] = field(default_factory=lambda:[[0.0 for s in range(configs.NUM_SCENARIOS)]for t in range(parameters.number_periods)]) #Index order: t, s
+    harvest_bin: list[list[float]] = field(default_factory=lambda:[[0.0 for s in range(configs.NUM_SCENARIOS)]for t in range(parameters.number_periods)]) #Index order: t, s
 
 @dataclass
-class CGColumnFromSubProblem():
+class CGColumn():
     site: int
     iteration_k: int
     production_schedules: Dict[int, DeployPeriodVariables] = field(default_factory=dict)
@@ -59,7 +59,7 @@ class CGColumnFromSubProblem():
             f_list = []
             for f in range(configs.NUM_SMOLT_TYPES):
                 t_list = []
-                for t in range(parameters.max_periods_deployed):
+                for t in range(parameters.number_periods):
                     s_list = []
                     for s in range(configs.NUM_SCENARIOS):
                         y = deploy_period_variables.y[f][t]
@@ -76,7 +76,7 @@ class CGColumnFromSubProblem():
                                "harvest_bin"]
                     t_list.append(
                         pd.DataFrame(s_list, columns=columns, index=[i for i in range(configs.NUM_SCENARIOS)]))
-                f_list.append(pd.concat(t_list, keys=[i for i in range(deploy_period, deploy_period + parameters.max_periods_deployed)]))
+                f_list.append(pd.concat(t_list, keys=[t for t in range(parameters.number_periods)]))
             df = pd.concat(f_list, keys=[i for i in range(configs.NUM_SMOLT_TYPES)])
             df_filtered = df.loc[~(df[["X", "W"]] == 0).all(axis=1)]
             deploy_period_list.append(df_filtered)

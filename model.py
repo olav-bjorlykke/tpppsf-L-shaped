@@ -789,22 +789,22 @@ class Model:
     def get_column_object(self, location, iteration):
         deploy_periods = self.get_deploy_period_list()
         print(deploy_periods[0])
-        column = data_classes.CGColumnFromSubProblem(location, iteration)
+        column = data_classes.CGColumn(location, iteration)
         for t_hat in deploy_periods[0]: #TODO: Double check if this works
             deploy_period_variables = data_classes.DeployPeriodVariables()
             for f in range(self.f_size):
-                for t in range(t_hat, min(t_hat + self.parameters.max_periods_deployed, self.t_size)):
-                    deploy_period_variables.y[f][t - t_hat] = self.y[0,f , t].x
-                    deploy_period_variables.deploy_type_bin[f][t - t_hat] = self.deploy_type_bin[0, f, t].x
+                for t in range(self.t_size):
+                    deploy_period_variables.y[f][t] = round(self.y[0,f , t].x, 2)
+                    deploy_period_variables.deploy_type_bin[f][t] = round(self.deploy_type_bin[0, f, t].x, 2)
                     for s in range(self.s_size):
-                        deploy_period_variables.x[f][t - t_hat][s] = self.x[0,f,t_hat,t,s].x
-                        deploy_period_variables.w[f][t - t_hat][s] = self.w[0, f, t_hat, t, s].x
-            for t in range(t_hat, min(t_hat + self.parameters.max_periods_deployed, self.t_size)):
-                deploy_period_variables.deploy_bin[t - t_hat] = self.deploy_bin[0,t].x
+                        deploy_period_variables.x[f][t][s] = round(self.x[0,f,t_hat,t,s].x, 2)
+                        deploy_period_variables.w[f][t][s] = round(self.w[0, f, t_hat, t, s].x, 2)
+            for t in range(self.t_size):
+                deploy_period_variables.deploy_bin[t] = round(self.deploy_bin[0,t].x,2)
                 for s in range(self.s_size):
-                    deploy_period_variables.employ_bin[t - t_hat][s] = self.employ_bin[0,t,s].x
-                    deploy_period_variables.employ_bin_granular[t - t_hat][s] = self.employ_bin_granular[0, t_hat, t, s].x
-                    deploy_period_variables.harvest_bin[t - t_hat][s] = self.harvest_bin[0, t, s].x
+                    deploy_period_variables.employ_bin[t][s] = round(self.employ_bin[0,t,s].x,2)
+                    deploy_period_variables.employ_bin_granular[t][s] = round(self.employ_bin_granular[0, t_hat, t, s].x,2)
+                    deploy_period_variables.harvest_bin[t][s] = round(self.harvest_bin[0, t, s].x,2)
             column.production_schedules[t_hat] = deploy_period_variables
 
         return column
