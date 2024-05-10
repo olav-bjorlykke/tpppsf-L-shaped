@@ -12,12 +12,12 @@ class CGMasterProblem:
         self.f_size = configs.NUM_SMOLT_TYPES
         self.t_size = parameters.number_periods
         self.s_size = configs.NUM_SCENARIOS
-        self.columns = {} #dict, key = iterations, item = list of columns where index is l (site)
+        self.columns = {} #dict, key = [site, iteration], value = CGcolumn object
 
     """
     Initializing and updating model
     """
-    def initialize_model(self):
+    def initialize_model(self): #TODO:FIx after constraints are made
         self.model = gp.Model(f"CG master problem model")
         self.declare_variables()
         self.set_objective()
@@ -40,26 +40,77 @@ class CGMasterProblem:
         self.harvest_bin = self.model.addVars(self.t_size, self.s_size, vtype=GRB.CONTINUOUS, lb=0, ub=1)
 
     def solve(self):
-        pass
+        self.model.optimize()
 
     """
     Add objective
     """
     def set_objective(self):
-        pass
+        self.model.setObjective(
+            gp.quicksum(
+                gp.quicksum(
+                    gp.quicksum(
+                        parameters.scenario_probabilities[s] *
+                        gp.quicksum(
+                            self.columns[[l, k]].production_schedules[t_hat].w[s][t][f]
+                            for t_hat in list(self.columns[[l, k]].production_schedules.keys())
+                            for t in range(parameters.max_periods_deployed)
+                            for f in range(self.f_size)
+                        )
+                        for s in range(self.s_size)
+                    )
+                ) * self.lambda_var[l, k]
+                for l in range(self.l_size)
+                for k in range(self.iterations_k)
+            ),
+            GRB.MAXIMIZE
+        )
+
+
 
     """
     Add constraints
     """
 
     def add_MAB_company_constraint(self):
-        pass
+        self.model.addConstrs(
+            gp.quicksum(
+                gp.quicksum(
+                    0.0 if (t > t_hat + parameters.max_periods_deployed or t <= t_hat) else self.columns[[l, k]].production_schedules[t_hat].x[s][t - t_hat][f]
+                    for t_hat in list(self.columns[[l, k]].production_schedules.keys())
+                    for f in range(self.f_size)
+                )
+                * self.lambda_var[l, k]
+                for l in range(self.l_size)
+                for k in range(self.iterations_k)
+            ) <= configs.MAB_COMPANY_LIMIT
+            for t in range(self.t_size)
+            for s in range(self.s_size)
+        )
 
     def add_EOH_constraint(self):
-        pass
+        self.model.addConstrs(
+            gp.quicksum(
+                gp.quicksum(
+                    self.columns[[l, k]].production_schedules[t_hat].x[s][self.t_size - t_hat - 1][f]
+                    for t_hat in list(self.columns[[l, k]].production_schedules.keys()) if t_hat >= self.t_size - parameters.max_periods_deployed
+                    for f in range(self.f_size)
+                )
+                * self.lambda_var[l, k]
+                for l in range(self.l_size)
+                for k in range(self.iterations_k)
+            ) <= configs.MAB_COMPANY_LIMIT * parameters.EOH_ratio_requirement
+            for s in range(self.s_size)
+        )
 
     def add_convexity_constraint(self):
-        pass
+        self.model.addConstrs(
+            gp.quicksum(
+                self.lambda_var[l,k] for k in range(self.iterations_k)
+            ) == 1
+            for l in range(self.l_size)
+        )
+
 
     """
     Branching constraints
