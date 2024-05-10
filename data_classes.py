@@ -48,31 +48,6 @@ class DeployPeriodVariables():
     employ_bin_granular: list[list[float]] = field(default_factory=lambda:[[0.0 for s in range(configs.NUM_SCENARIOS)]for t in range(parameters.max_periods_deployed)]) #Index order: t, s
     harvest_bin: list[list[float]] = field(default_factory=lambda:[[0.0 for s in range(configs.NUM_SCENARIOS)]for t in range(parameters.max_periods_deployed)]) #Index order: t, s
 
-    def write_to_file(self):
-        f_list = []
-        for f in range(configs.NUM_SMOLT_TYPES):
-            t_list = []
-            for t in range(parameters.max_periods_deployed):
-                s_list = []
-                for s in range(configs.NUM_SCENARIOS):
-                    y = self.y[f][t]
-                    x = self.x[f][t][s]
-                    w = self.w[f][t][s]
-                    deploy_bin = self.deploy_bin[t]
-                    deploy_type_bin = self.deploy_type_bin[f][t]
-                    employ_bin = self.employ_bin[t][s]
-                    employ_bin_gran = self.employ_bin_granular[t][s]
-                    harvest_bin = self.harvest_bin[t][s]
-                    variable_list = [y, x, w, deploy_bin, deploy_type_bin, employ_bin, employ_bin_gran, harvest_bin]
-                    s_list.append(variable_list)
-                columns = ["Y","X", "W", "deploy_bin", "deploy_type_bin", "employ_bin", "employ_bin_gran", "harvest_bin"]
-                t_list.append(pd.DataFrame(s_list, columns=columns, index=[i for i in range(configs.NUM_SCENARIOS)]))
-            f_list.append(pd.concat(t_list, keys=[i for i in range(parameters.max_periods_deployed)]))
-        df = pd.concat(f_list, keys=[i for i in range(configs.NUM_SMOLT_TYPES)])
-        df.index.names = ["f", "t", "s"]
-        df_filtered = df.loc[~(df[["X", "W"]] == 0).all(axis=1)]
-        return df_filtered
-        
 @dataclass
 class CGColumnFromSubProblem():
     site: int

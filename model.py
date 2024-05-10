@@ -811,10 +811,6 @@ class Model:
 
 
 
-
-
-
-
     def get_deploy_period_list(self):
         deploy_periods_list = []
         for l in range(self.l_size):
