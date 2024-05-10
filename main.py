@@ -15,11 +15,16 @@ import initialization.sites as sites
 def run_monolithic_model():
     model = Model(sites.short_sites_list[0])
     model.solve_and_print_model()
+    column = model.get_column_object(1,1)
+    column.write_to_file()
+    print(column)
 
 def main():
     pass
 
 if __name__ == '__main__':
     run_monolithic_model()
+
+
 
 

@@ -39,21 +39,20 @@ class CGDualVariablesFromMaster():
 
 @dataclass
 class DeployPeriodVariables():
-    y: list[list[float]]  # Index order: f, t
-    x: list[list[list[float]]]  # Index order: f, t, s
-    w: list[list[list[float]]] #Index order: f, t, s
-    deploy_bin: list[float] #Index order: t
-    deploy_type_bin: list[list[float]] #Index order: f, t
-    employ_bin: list[list[float]] #Index order: t, s
-    employ_bin_granular: list[list[float]] #Index order: t, s
-    harvest_bin: list[list[float]] #Index order: t, s
+    y: list[list[float]] = field(default_factory= lambda: [[0.0 for t in range(parameters.max_periods_deployed)] for f in range(configs.NUM_SMOLT_TYPES)])  # Index order: f, t
+    x: list[list[list[float]]] = field(default_factory=lambda: [[[0.0 for s in range(configs.NUM_SCENARIOS)] for t in range(parameters.max_periods_deployed)] for f in range(configs.NUM_SMOLT_TYPES)])# Index order: f, t, s
+    w: list[list[list[float]]] = field(default_factory=lambda: [[[0.0 for s in range(configs.NUM_SCENARIOS)] for t in range(parameters.max_periods_deployed)] for f in range(configs.NUM_SMOLT_TYPES)]) #Index order: f, t, s
+    deploy_bin: list[float] = field(default_factory=lambda: [0.0 for t in range(parameters.max_periods_deployed)]) #Index order: t
+    deploy_type_bin: list[list[float]] = field(default_factory=lambda: [[0.0 for t in range(parameters.max_periods_deployed)] for f in range(configs.NUM_SMOLT_TYPES)])#Index order: f, t
+    employ_bin: list[list[float]] = field(default_factory=lambda:[[0.0 for s in range(configs.NUM_SCENARIOS)]for t in range(parameters.max_periods_deployed)]) #Index order: t, s
+    employ_bin_granular: list[list[float]] = field(default_factory=lambda:[[0.0 for s in range(configs.NUM_SCENARIOS)]for t in range(parameters.max_periods_deployed)]) #Index order: t, s
+    harvest_bin: list[list[float]] = field(default_factory=lambda:[[0.0 for s in range(configs.NUM_SCENARIOS)]for t in range(parameters.max_periods_deployed)]) #Index order: t, s
 
     def write_to_file(self):
         f_list = []
         for f in range(configs.NUM_SMOLT_TYPES):
-
             t_list = []
-            for t in range(parameters.number_periods):
+            for t in range(parameters.max_periods_deployed):
                 s_list = []
                 for s in range(configs.NUM_SCENARIOS):
                     y = self.y[f][t]
@@ -68,8 +67,9 @@ class DeployPeriodVariables():
                     s_list.append(variable_list)
                 columns = ["Y","X", "W", "deploy_bin", "deploy_type_bin", "employ_bin", "employ_bin_gran", "harvest_bin"]
                 t_list.append(pd.DataFrame(s_list, columns=columns, index=[i for i in range(configs.NUM_SCENARIOS)]))
-            f_list.append(pd.concat(t_list, keys=[i for i in range(parameters.number_periods)]))
+            f_list.append(pd.concat(t_list, keys=[i for i in range(parameters.max_periods_deployed)]))
         df = pd.concat(f_list, keys=[i for i in range(configs.NUM_SMOLT_TYPES)])
+        df.index.names = ["f", "t", "s"]
         df_filtered = df.loc[~(df[["X", "W"]] == 0).all(axis=1)]
         return df_filtered
         
@@ -77,7 +77,38 @@ class DeployPeriodVariables():
 class CGColumnFromSubProblem():
     site: int
     iteration_k: int
-    production_schedules: Dict[int, DeployPeriodVariables]
+    production_schedules: Dict[int, DeployPeriodVariables] = field(default_factory=dict)
     def write_to_file(self):
-        df = pd.concat([deploy_vars.write_to_file() for deploy_vars in self.production_schedules.values()], keys=[key for key in self.production_schedules.keys()])
-        df.to_excel(f"{configs.OUTPUT_DIR}column_variable_values_site{self.site}_iteration{self.iteration_k}.xlsx")
+        deploy_period_list = []
+        for deploy_period, deploy_period_variables in self.production_schedules.items():
+            f_list = []
+            for f in range(configs.NUM_SMOLT_TYPES):
+                t_list = []
+                for t in range(parameters.max_periods_deployed):
+                    s_list = []
+                    for s in range(configs.NUM_SCENARIOS):
+                        y = deploy_period_variables.y[f][t]
+                        x = deploy_period_variables.x[f][t][s]
+                        w = deploy_period_variables.w[f][t][s]
+                        deploy_bin = deploy_period_variables.deploy_bin[t]
+                        deploy_type_bin = deploy_period_variables.deploy_type_bin[f][t]
+                        employ_bin = deploy_period_variables.employ_bin[t][s]
+                        employ_bin_gran = deploy_period_variables.employ_bin_granular[t][s]
+                        harvest_bin = deploy_period_variables.harvest_bin[t][s]
+                        variable_list = [y, x, w, deploy_bin, deploy_type_bin, employ_bin, employ_bin_gran, harvest_bin]
+                        s_list.append(variable_list)
+                    columns = ["Y", "X", "W", "deploy_bin", "deploy_type_bin", "employ_bin", "employ_bin_gran",
+                               "harvest_bin"]
+                    t_list.append(
+                        pd.DataFrame(s_list, columns=columns, index=[i for i in range(configs.NUM_SCENARIOS)]))
+                f_list.append(pd.concat(t_list, keys=[i for i in range(deploy_period, deploy_period + parameters.max_periods_deployed)]))
+            df = pd.concat(f_list, keys=[i for i in range(configs.NUM_SMOLT_TYPES)])
+            df_filtered = df.loc[~(df[["X", "W"]] == 0).all(axis=1)]
+            deploy_period_list.append(df_filtered)
+        df = pd.concat(deploy_period_list, keys=list(self.production_schedules.keys()))
+        df.index.names = ["Deploy Period", "Smolt Type", "Period", "Scenario"]
+        df_reordered = df.reorder_levels(["Scenario", "Smolt Type", "Deploy Period", "Period"])
+        df_sorted = df_reordered.sort_index(level=["Scenario", "Smolt Type", "Deploy Period", "Period"], ascending=[True,True,True,True])
+        df_sorted.to_excel(f"{configs.OUTPUT_DIR}column_variable_values_site{self.site}_iteration{self.iteration_k}.xlsx")
+
+

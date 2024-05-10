@@ -8,6 +8,7 @@ from initialization.site_class import Site
 import matplotlib.pyplot as plt
 import initialization.configs as configs
 import time
+import data_classes
 
 
 class Model:
@@ -643,6 +644,11 @@ class Model:
         df = pd.read_csv(path, index_col=self.column_index_names)
         return df
 
+    """
+    Printing solution to dataclass
+    """
+
+
 
     """
     Plot functions
@@ -779,6 +785,35 @@ class Model:
     """
     Get solution functions
     """
+
+    def get_column_object(self, location, iteration):
+        deploy_periods = self.get_deploy_period_list()
+        print(deploy_periods[0])
+        column = data_classes.CGColumnFromSubProblem(location, iteration)
+        for t_hat in deploy_periods[0]: #TODO: Double check if this works
+            deploy_period_variables = data_classes.DeployPeriodVariables()
+            for f in range(self.f_size):
+                for t in range(t_hat, min(t_hat + self.parameters.max_periods_deployed, self.t_size)):
+                    deploy_period_variables.y[f][t - t_hat] = self.y[0,f , t].x
+                    deploy_period_variables.deploy_type_bin[f][t - t_hat] = self.deploy_type_bin[0, f, t].x
+                    for s in range(self.s_size):
+                        deploy_period_variables.x[f][t - t_hat][s] = self.x[0,f,t_hat,t,s].x
+                        deploy_period_variables.w[f][t - t_hat][s] = self.w[0, f, t_hat, t, s].x
+            for t in range(t_hat, min(t_hat + self.parameters.max_periods_deployed, self.t_size)):
+                deploy_period_variables.deploy_bin[t - t_hat] = self.deploy_bin[0,t].x
+                for s in range(self.s_size):
+                    deploy_period_variables.employ_bin[t - t_hat][s] = self.employ_bin[0,t,s].x
+                    deploy_period_variables.employ_bin_granular[t - t_hat][s] = self.employ_bin_granular[0, t_hat, t, s].x
+                    deploy_period_variables.harvest_bin[t - t_hat][s] = self.harvest_bin[0, t, s].x
+            column.production_schedules[t_hat] = deploy_period_variables
+
+        return column
+
+
+
+
+
+
 
     def get_deploy_period_list(self):
         deploy_periods_list = []
