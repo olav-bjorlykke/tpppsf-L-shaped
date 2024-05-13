@@ -15,6 +15,7 @@ class LShapedMasterProblemVariables():
         writer = pd.ExcelWriter(f"{configs.OUTPUT_DIR}master_variables_site{self.l}.xlsx")
         pd.DataFrame(self.y).to_excel(writer, index=False, sheet_name="deploy_amounts")
         pd.Series(self.deploy_bin).to_excel(writer, index=False, sheet_name="deploy_bins")
+        writer.close()
 
 @dataclass
 class LShapedSubProblemDualVariables(): 
@@ -29,13 +30,14 @@ class LShapedSubProblemDualVariables():
 @dataclass
 class CGDualVariablesFromMaster():
     iteration: int
-    u_MAB: list[list[float]] #t, s
-    u_EOH: list[float] #s
+    u_MAB: list[list[float]] = field(default_factory=lambda: [[0.0 for s in range(configs.NUM_SCENARIOS)]for t in range(parameters.number_periods)]) #t, s
+    u_EOH: list[float] = field(default_factory=lambda: [0.0 for s in range(configs.NUM_SCENARIOS)])#s
 
     def write_to_file(self):
         writer = pd.ExcelWriter(f"{configs.OUTPUT_DIR}dual_variables_iteration{self.iteration}.xlsx")
         pd.DataFrame(self.u_MAB).to_excel(writer, index=False, sheet_name="u_MAB")
         pd.Series(self.u_EOH).to_excel(writer, index=False, sheet_name="u_EOH")
+        writer.close()
 
 @dataclass
 class DeployPeriodVariables():

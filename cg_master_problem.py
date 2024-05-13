@@ -2,6 +2,7 @@ import gurobipy as gp
 from gurobipy import GRB
 import initialization.parameters as parameters
 import initialization.configs as configs
+from data_classes import CGDualVariablesFromMaster
 
 
 
@@ -33,15 +34,15 @@ class CGMasterProblem:
         self.lambda_var = self.model.addVars(configs.NUM_LOCATIONS, self.iterations_k, vtype=GRB.CONTINUOUS, lb=0)
         
         # Declaring the tracking variables
-        self.y = self.model.addVars(self.l_size, self.f_size, self.t_size, vtype=GRB.CONTINUOUS, lb=0)
-        self.x = self.model.addVars(self.l_size, self.f_size, self.t_size, self.t_size+1, self.s_size, vtype=GRB.CONTINUOUS, lb=0)
-        self.w = self.model.addVars(self.l_size, self.f_size, self.t_size, self.t_size, self.s_size, vtype=GRB.CONTINUOUS, lb=0)
+        self.y = self.model.addVars(self.l_size, self.f_size, self.t_size, vtype=GRB.CONTINUOUS, lb=0, name="Y")
+        self.x = self.model.addVars(self.l_size, self.f_size, self.t_size, self.t_size+1, self.s_size, vtype=GRB.CONTINUOUS, lb=0, name="X")
+        self.w = self.model.addVars(self.l_size, self.f_size, self.t_size, self.t_size, self.s_size, vtype=GRB.CONTINUOUS, lb=0,name="W")
 
-        self.deploy_bin = self.model.addVars(self.l_size, self.t_size, vtype=GRB.CONTINUOUS, lb=0, ub=1)
-        self.deploy_type_bin = self.model.addVars(self.l_size, self.f_size, self.t_size, vtype=GRB.CONTINUOUS, lb=0, ub=1)
-        self.employ_bin = self.model.addVars(self.l_size, self.t_size, self.s_size, vtype=GRB.CONTINUOUS, lb=0, ub=1)
-        self.employ_bin_granular = self.model.addVars(self.l_size, self.t_size, self.t_size, self.s_size, vtype=GRB.CONTINUOUS, lb=0, ub=1)
-        self.harvest_bin = self.model.addVars(self.l_size, self.t_size, self.s_size, vtype=GRB.CONTINUOUS, lb=0, ub=1)
+        self.deploy_bin = self.model.addVars(self.l_size, self.t_size, vtype=GRB.CONTINUOUS, lb=0, ub=1,name="deploy_bin")
+        self.deploy_type_bin = self.model.addVars(self.l_size, self.f_size, self.t_size, vtype=GRB.CONTINUOUS, lb=0, ub=1,name="deploy_type")
+        self.employ_bin = self.model.addVars(self.l_size, self.t_size, self.s_size, vtype=GRB.CONTINUOUS, lb=0, ub=1,name="employ_bin")
+        self.employ_bin_granular = self.model.addVars(self.l_size, self.t_size, self.t_size, self.s_size, vtype=GRB.CONTINUOUS, lb=0, ub=1,name="employ_bin_gran")
+        self.harvest_bin = self.model.addVars(self.l_size, self.t_size, self.s_size, vtype=GRB.CONTINUOUS, lb=0, ub=1,name="harvest_bin")
 
     def solve(self):
         self.model.optimize()
@@ -109,11 +110,12 @@ class CGMasterProblem:
         )
 
     def add_convexity_constraint(self):
-        self.model.addConstrs(
+        self.model.addConstrs((
             gp.quicksum(
                 self.lambda_var[l,k] for k in range(self.iterations_k)
             ) == 1
             for l in range(self.l_size)
+        ), name="Convexity"
         )
 
 
@@ -129,7 +131,7 @@ class CGMasterProblem:
     Variable tracking constraints
     """
     def add_variable_tracking_constraints(self):
-        self.model.addConstrs(
+        self.model.addConstrs((
             gp.quicksum(
                     self.lambda_var[l,k] * self.columns[(l, k)].production_schedules[t_hat].w[f][t][s] if t_hat in self.columns[(l,k)].production_schedules.keys() else 0.0
                 for k in range(self.iterations_k)
@@ -139,9 +141,10 @@ class CGMasterProblem:
             for t_hat in range(self.t_size)
             for t in range(self.t_size)
             for s in range(self.s_size)
+        ), name="W-tracking"
         )
 
-        self.model.addConstrs(
+        self.model.addConstrs((
             gp.quicksum(
                 self.lambda_var[l, k] * self.columns[(l, k)].production_schedules[t_hat].x[f][t][s] if t_hat in self.columns[(l, k)].production_schedules.keys() else 0.0
                 for k in range(self.iterations_k)
@@ -151,53 +154,69 @@ class CGMasterProblem:
             for t_hat in range(self.t_size)
             for t in range(self.t_size + 1)
             for s in range(self.s_size)
-        )
+        ), name="X-tracking")
 
-        self.model.addConstrs(
-            gp.quicksum(
-                self.lambda_var[l, k] * self.columns[(l, k)].production_schedules[t_hat].y[f][t] if t_hat in self.columns[(l, k)].production_schedules.keys() else 0.0
-                for k in range(self.iterations_k)
-            ) == self.y[l, f, t]
-            for l in range(self.l_size)
-            for f in range(self.f_size)
-            for t_hat in range(self.t_size)
-            for t in range(t_hat, self.t_size)
-        )
+        added_y_tracking_indices = [] #Just introduced a fuckload of tech-debt
+        for t_hat in range(self.t_size):
+            for l in range(self.l_size):
+                for k_hat in range(self.iterations_k):
+                    if t_hat in self.columns[(l, k_hat)].production_schedules.keys():
+                        added_y_tracking_indices.append((l,k_hat,t_hat))
+                        if (l,k_hat,t_hat) not in added_y_tracking_indices:
+                            self.model.addConstrs((
+                                gp.quicksum(
+                                    self.lambda_var[l, k] * self.columns[(l, k)].production_schedules[t_hat].y[f][t]
+                                    for k in range(self.iterations_k)
+                                ) == self.y[l, f, t]
+                                for f in range(self.f_size)
+                                for t in range(t_hat, self.t_size)
+                            ), name="Y-tracking")
 
-        self.model.addConstrs(
-            gp.quicksum(
-                self.lambda_var[l, k] * self.columns[(l, k)].production_schedules[t_hat].deploy_bin[t] if t_hat in self.columns[(l, k)].production_schedules.keys() else 0.0
-                for k in range(self.iterations_k)
-            ) == self.deploy_bin[l, t]
-            for l in range(self.l_size)
-            for t_hat in range(self.t_size)
-            for t in range(t_hat, self.t_size)
-        )
+        added_deploy_bin_tracking_indices = []
+        for t_hat in range(self.t_size):
+            for l in range(self.l_size):
+                for k_hat in range(self.iterations_k):
+                    added_deploy_bin_tracking_indices.append((l, k_hat, t_hat))
+                    if (l, k_hat, t_hat) not in added_deploy_bin_tracking_indices:
+                        self.model.addConstrs((
+                            gp.quicksum(
+                                self.lambda_var[l, k] * self.columns[(l, k)].production_schedules[t_hat].deploy_bin[t]
+                                for k in range(self.iterations_k)
+                            ) == self.deploy_bin[l, t]
+                            for t in range(t_hat, self.t_size)
+                        ), name="Deploy_bin-tracking")
 
-        self.model.addConstrs(
-            gp.quicksum(
-                self.lambda_var[l, k] * self.columns[(l, k)].production_schedules[t_hat].deploy_type_bin[f][t] if t_hat in self.columns[(l, k)].production_schedules.keys() else 0.0
-                for k in range(self.iterations_k)
-            ) == self.deploy_type_bin[l, f, t]
-            for l in range(self.l_size)
-            for f in range(self.f_size)
-            for t_hat in range(self.t_size)
-            for t in range(t_hat, self.t_size)
-        )
+        added_deploy_type_bin_tracking_indices = []
+        for t_hat in range(self.t_size):
+            for l in range(self.l_size):
+                for k_hat in range(self.iterations_k):
+                    added_deploy_type_bin_tracking_indices.append((l, k_hat, t_hat))
+                    if (l, k_hat, t_hat) not in added_deploy_type_bin_tracking_indices:
+                        self.model.addConstrs((
+                            gp.quicksum(
+                                self.lambda_var[l, k] * self.columns[(l, k)].production_schedules[t_hat].deploy_type_bin[f][t]
+                                for k in range(self.iterations_k)
+                            ) == self.deploy_type_bin[l, f, t]
+                            for f in range(self.f_size)
+                            for t in range(t_hat, self.t_size)
+                        ), name="deploy_type_bin-tracking")
 
-        self.model.addConstrs(
-            gp.quicksum(
-                self.lambda_var[l, k] * self.columns[(l, k)].production_schedules[t_hat].employ_bin[t][s] if t_hat in self.columns[(l, k)].production_schedules.keys() else 0.0
-                for k in range(self.iterations_k)
-            ) == self.employ_bin[l, t, s]
-            for l in range(self.l_size)
-            for t_hat in range(self.t_size)
-            for t in range(t_hat, self.t_size)
-            for s in range(self.s_size)
+        added_employ_bin_tracking_indices = []
+        for t_hat in range(self.t_size):
+            for l in range(self.l_size):
+                for k_hat in range(self.iterations_k):
+                    added_employ_bin_tracking_indices.append((l, k_hat, t_hat))
+                    if (l, k_hat, t_hat) not in added_employ_bin_tracking_indices:
+                        self.model.addConstrs((
+                            gp.quicksum(
+                                self.lambda_var[l, k] * self.columns[(l, k)].production_schedules[t_hat].employ_bin[t][s]
+                                for k in range(self.iterations_k)
+                            ) == self.employ_bin[l, t, s]
+                            for t in range(t_hat, self.t_size)
+                            for s in range(self.s_size)
+                        ), name="employ_bin-tracking")
 
-        )
-
-        self.model.addConstrs(
+        self.model.addConstrs((
             gp.quicksum(
                 self.lambda_var[l, k] * self.columns[(l, k)].production_schedules[t_hat].employ_bin_granular[t][s] if t_hat in self.columns[(l, k)].production_schedules.keys() else 0.0
                 for k in range(self.iterations_k)
@@ -207,22 +226,37 @@ class CGMasterProblem:
             for t in range(t_hat, self.t_size)
             for s in range(self.s_size)
 
-        )
+        ), name="employ_bin_granular-tracking")
 
-        self.model.addConstrs(
-            gp.quicksum(
-                self.lambda_var[l, k] * self.columns[(l, k)].production_schedules[t_hat].employ_bin_granular[t][s] if t_hat in self.columns[(l, k)].production_schedules.keys() else 0.0
-                for k in range(self.iterations_k)
-            ) == self.employ_bin_granular[l, t_hat,t , s]
-            for l in range(self.l_size)
-            for t_hat in range(self.t_size)
-            for t in range(t_hat, self.t_size)
-            for s in range(self.s_size)
+        added_harvest_bin_tracking_indices = []
+        for t_hat in range(self.t_size):
+            for l in range(self.l_size):
+                for k_hat in range(self.iterations_k):
+                    added_harvest_bin_tracking_indices.append((l, k_hat, t_hat))
+                    if (l, k_hat, t_hat) not in added_harvest_bin_tracking_indices:
+                        self.model.addConstrs((
+                            gp.quicksum(
+                                self.lambda_var[l, k] * self.columns[(l, k)].production_schedules[t_hat].harvest_bin[t][s]
+                                for k in range(self.iterations_k)
+                            ) == self.harvest_bin[l, t, s]
+                            for t in range(t_hat, self.t_size)
+                            for s in range(self.s_size)
 
-        )
+                        ), name="Harvest_bin-tracking")
 
     def get_dual_variables(self):
-        pass
+        dual_variables = CGDualVariablesFromMaster(iteration=self.iterations_k)
+        for t in range(self.t_size):
+            for s in range(self.s_size):
+                constr = self.model.getConstrByName(f"MAB[{t},{s}]")
+                dual = constr.getAttr("Pi")
+                dual_variables.u_MAB[t][s] = dual
 
-    #TODO: Get shadow prices out!
+        for s in range(self.s_size):
+            constr = self.model.getConstrByName(f"EOH[{s}]")
+            dual = constr.getAttr("Pi")
+            dual_variables.u_EOH[s] = dual
+
+        return dual_variables
+
 

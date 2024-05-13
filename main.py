@@ -30,6 +30,7 @@ def run_master_problem():
     master.initialize_model()
     master.solve()
     master.model.write("master.lp")
+    master.get_dual_variables().write_to_file()
 
 
 

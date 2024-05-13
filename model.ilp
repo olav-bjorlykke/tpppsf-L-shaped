@@ -1,0 +1,12 @@
+\ Model CG master problem model_copy
+\ LP format - for model browsing. Use MPS format to capture full model detail.
+Maximize
+ 
+Subject To
+ Convexity[0]: C0 = 1
+ Deploy_bin-tracking[0,1,18]: - deploy_bin[0,18] = 0
+ Deploy_bin-tracking[0,18,18]: C0 - deploy_bin[0,18] = 0
+Bounds
+ C0 free
+ deploy_bin[0,18] free
+End
