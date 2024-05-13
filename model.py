@@ -149,7 +149,7 @@ class Model:
         self.declare_variables()
 
         # Setting objective
-        self.set_decomped_objective()
+        self.set_objective()
 
         # Adding constraints
         #TODO: Give the constraints numbers
