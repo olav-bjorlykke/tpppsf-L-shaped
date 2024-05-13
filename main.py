@@ -14,23 +14,40 @@ import initialization.sites as sites
 
 
 def run_monolithic_model():
-    model = Model(sites.short_sites_list[0])
-    model.solve_and_print_model()
-    column = model.get_column_object(1,1)
-    column.write_to_file()
-    print(column)
+    model = Model(sites.short_sites_list)
+    columns = model.create_zero_column(0)
+    for column in columns:
+        column.write_to_file()
+
 
 def run_master_problem():
     master = CGMasterProblem()
-    sub = Model(sites.short_sites_list[0])
-    sub.solve_and_print_model()
-    column = sub.get_column_object(location=0,iteration=0)
-    column.write_to_file()
-    master.columns[(0,0)] = column
-    master.initialize_model()
-    master.solve()
-    master.model.write("master.lp")
-    master.get_dual_variables().write_to_file()
+    initial = Model(sites.SITE_LIST)
+    initial_columns = initial.create_zero_column(0)
+    initial_columns2 = initial.create_initial_columns(1)
+
+    for column in initial_columns:
+        master.columns[(column.site, column.iteration_k)] = column
+
+    for column in initial_columns2:
+        master.columns[(column.site, column.iteration_k)] = column
+
+    for j in range(2,10):
+        master.initialize_model()
+        master.solve()
+        dual_variables = master.get_dual_variables()
+        dual_variables.write_to_file()
+
+        columns = []
+        for i in range(len(sites.SITE_LIST)):
+            sub = Model(sites.SITE_LIST[i])
+            sub.solve_as_sub_problem(dual_variables)
+            column = sub.get_column_object(iteration=j)
+            columns.append(column)
+
+        for column in columns:
+            master.columns[(column.site, column.iteration_k)] = column
+
 
 
 

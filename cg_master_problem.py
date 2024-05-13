@@ -13,7 +13,7 @@ class CGMasterProblem:
         self.f_size = configs.NUM_SMOLT_TYPES
         self.t_size = parameters.number_periods
         self.s_size = configs.NUM_SCENARIOS
-        self.columns = {} #dict, key = [site, iteration], value = CGcolumn object
+        self.columns = {} #dict, key = (site, iteration), value = CGcolumn object
 
     """
     Initializing and updating model
@@ -28,6 +28,14 @@ class CGMasterProblem:
         self.set_objective()
 
     def update_model(self):
+        self.model.remove(self.model.getConstrs())
+        self.declare_variables()
+        self.add_MAB_company_constraint()
+        self.add_convexity_constraint()
+        self.add_EOH_constraint()
+        self.add_variable_tracking_constraints()
+        self.set_objective()
+
         pass
 
     def declare_variables(self):

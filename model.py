@@ -12,7 +12,6 @@ import data_classes
 
 
 class Model:
-    iterations = 0
     solution_index_names = ["Scenario", "Smolt type", "Deploy period", "Period"]
     column_index_names = ["Location", "Scenario", "Smolt type", "Deploy period", "Period"]
     time_in_subproblem = 0
@@ -141,7 +140,7 @@ class Model:
 
         #Putting solution into variables for export
 
-    def solve_as_sub_problem(self):
+    def solve_as_sub_problem(self, dual_variables):
         start_time = time.perf_counter()
         self.model = gp.Model(f"Single site solution")
 
@@ -149,8 +148,7 @@ class Model:
         self.declare_variables()
 
         # Setting objective
-        self.set_objective()
-
+        self.set_decomped_objective(dual_variables)
         # Adding constraints
         #TODO: Give the constraints numbers
         self.add_smolt_deployment_constraints()
@@ -161,11 +159,14 @@ class Model:
         self.add_MAB_requirement_constraint()
         self.add_initial_condition_constraint()
         self.add_forcing_constraints()
+        self.add_employ_bin_forcing_constraints()
+        self.add_x_forcing_constraint()
+        self.add_valid_inequality()
 
         #Note that MAB constraint and end of horizon constraints are not added here.
 
-        self.add_up_branching_constraints()
-        self.add_down_branching_constraints()
+        #self.add_up_branching_constraints()
+        #self.add_down_branching_constraints()
 
         # Running gurobi to optimize model
         self.model.optimize()
@@ -177,7 +178,7 @@ class Model:
     Function for creating initial columns
     """
 
-    def create_initial_columns(self):
+    def create_initial_columns(self, iteration=0):
         self.model = gp.Model(f"Find feasible solution")
 
         #Telling the model to focus on finding a feasible solution
@@ -192,7 +193,6 @@ class Model:
         self.set_objective()
 
         # Adding constraints
-
         self.add_smolt_deployment_constraints()
         self.add_fallowing_constraints()
         self.add_inactivity_constraints()
@@ -203,21 +203,56 @@ class Model:
         self.add_forcing_constraints()
         self.add_MAB_company_requirement_constraint()
         self.add_end_of_horizon_constraint()
-        # self.add_x_forcing_constraint()
-        # self.add_up_branching_constraints()
-        # self.add_down_branching_constraints()
+        self.add_employ_bin_forcing_constraints()
+        self.add_x_forcing_constraint()
+        self.add_valid_inequality()
 
         # Running gurobi to optimize model
         self.model.optimize()
 
         # Printing solution
         if self.model.status != GRB.INFEASIBLE:
-            #self.plot_solutions_x_values_per_site()
-            #self.plot_solutions_x_values_aggregated()
-            self.iterations += 1
-            return self.get_solution_as_df()
+            self.plot_solutions_x_values_per_site()
+            self.plot_solutions_x_values_aggregated()
+            return self.get_columns_from_multisite_solution(iteration) #Setting the iteration to be 0 for t
         else:
             return None
+
+    def create_zero_column(self, iteration):
+        self.model = gp.Model(f"Find feasible solution")
+
+        # Declaing variables
+        self.declare_variables()
+
+        # Setting objective
+        self.set_zero_objective()
+
+        # Adding constraints
+        self.add_smolt_deployment_constraints()
+        self.add_fallowing_constraints()
+        self.add_inactivity_constraints()
+        self.add_harvesting_constraints()
+        self.add_biomass_development_constraints()
+        self.add_MAB_requirement_constraint()
+        self.add_initial_condition_constraint()
+        self.add_forcing_constraints()
+        self.add_MAB_company_requirement_constraint()
+        self.add_end_of_horizon_constraint()
+        self.add_employ_bin_forcing_constraints()
+        self.add_x_forcing_constraint()
+        self.add_valid_inequality()
+
+        # Running gurobi to optimize model
+        self.model.optimize()
+
+        # Printing solution
+        if self.model.status != GRB.INFEASIBLE:
+            self.plot_solutions_x_values_per_site()
+            self.plot_solutions_x_values_aggregated()
+            return self.get_columns_from_multisite_solution(iteration)
+        else:
+            return None
+
 
     """
     Declaring variables and sets
@@ -273,42 +308,46 @@ class Model:
             , GRB.MAXIMIZE
         )
 
-    def set_decomped_objective(self):
-        #TODO: INVESTIGATE THIS WHEN ADAPTING TO COLUMN GENERATION
-        if not self.MAB_shadow_prices_df.empty:
-            self.model.setObjective(
-                # This is the objective (5.2) - which represents the objective for biomass maximization
+    def set_decomped_objective(self, dual_variables):
+        self.model.setObjective(
+            gp.quicksum(
+                self.scenario_probabilities[s] *
                 gp.quicksum(
-                    self.scenario_probabilities[s] * (
                     gp.quicksum(
-                        self.w[l, f, t_hat, t, s] - #TODO: This was just changed to a +, check if it should be a -
-                        self.x[l, f, t_hat, t, s] * self.MAB_shadow_prices_df.loc[(s, t)] if (s,t) in self.MAB_shadow_prices_df.index else 0.0
-                        for l in range(self.l_size)
-                        for f in range(self.f_size)
-                        for t_hat in range(self.t_size)
+                        self.w[l, f, t_hat, t, s] - self.x[l, f, t_hat, t, s] * dual_variables.u_MAB[t][s]
                         for t in range(self.growth_sets[l].loc[(self.smolt_weights[f], f"Scenario {s}")][t_hat],
                                        min(t_hat + self.parameters.max_periods_deployed, self.t_size))
-                    ) -
-                    gp.quicksum(
-                        self.x[l, 0, t_hat, 60, s] * self.EOH_shadow_prices_df.loc[(s)] if (s) in self.EOH_shadow_prices_df.index else 0.0
-                        for l in range(self.l_size)
-                        for f in range(self.f_size)
-                        for t_hat in range(self.t_size - self.parameters.max_periods_deployed + 1, self.t_size -1)
-                    )
-                    )
-                    for s in range(self.s_size)
+                    ) + self.x[l, f, t_hat, self.parameters.number_periods - 1, s] * dual_variables.u_EOH[s]
+                    for l in range(self.l_size)
+                    for f in range(self.f_size)
+                    for t_hat in range(self.t_size)
                 )
-                , GRB.MAXIMIZE
+                for s in range(self.s_size)
             )
+            ,GRB.MAXIMIZE
+        )
 
-        else:
-            self.set_objective()
-
-    def set_zero_ojective(self):
+    def set_zero_objective(self):
         """
         This function can be implemented to create a zero column, to initialize the master problem with.
         :return:
         """
+        self.model.setObjective(
+            # This is the objective (5.2) - which represents the objective for biomass maximization
+            gp.quicksum(
+                self.scenario_probabilities[s] *
+                gp.quicksum(
+                    self.w[l, f, t_hat, t, s]
+                    for l in range(self.l_size)
+                    for f in range(self.f_size)
+                    for t_hat in range(self.t_size)
+                    for t in range(self.growth_sets[l].loc[(self.smolt_weights[f], f"Scenario {s}")][t_hat],
+                                   min(t_hat + self.parameters.max_periods_deployed, self.t_size))
+                )
+                for s in range(self.s_size)
+            )
+            , GRB.MINIMIZE
+        )
         #TODO: RE-IMPLEMENT THIS FROM THE PROSJEKOPPGAVE DIR
         pass
 
@@ -783,33 +822,38 @@ class Model:
         plt.show()
 
     """
-    Get solution functions
+    Get column functions
     """
 
-    def get_column_object(self, location, iteration):
+    def get_column_object(self, location=0, iteration=0):
         deploy_periods = self.get_deploy_period_list()
-        print(deploy_periods[0])
         column = data_classes.CGColumn(location, iteration)
-        for t_hat in deploy_periods[0]: #TODO: Double check if this works
+        for t_hat in deploy_periods[location]: #TODO: Double check if this works
             deploy_period_variables = data_classes.DeployPeriodVariables()
             for f in range(self.f_size):
                 for t in range(self.t_size):
-                    deploy_period_variables.y[f][t] = round(self.y[0,f , t].x, 2)
+                    deploy_period_variables.y[f][t] = round(self.y[location,f , t].x, 2)
                     deploy_period_variables.deploy_type_bin[f][t] = round(self.deploy_type_bin[0, f, t].x, 2)
                     for s in range(self.s_size):
-                        deploy_period_variables.x[f][t][s] = round(self.x[0,f,t_hat,t,s].x, 2)
-                        deploy_period_variables.w[f][t][s] = round(self.w[0, f, t_hat, t, s].x, 2)
+                        deploy_period_variables.x[f][t][s] = round(self.x[location,f,t_hat,t,s].x, 2)
+                        deploy_period_variables.w[f][t][s] = round(self.w[location, f, t_hat, t, s].x, 2)
             for t in range(self.t_size):
-                deploy_period_variables.deploy_bin[t] = round(self.deploy_bin[0,t].x,2)
+                deploy_period_variables.deploy_bin[t] = round(self.deploy_bin[location,t].x,2)
                 for s in range(self.s_size):
-                    deploy_period_variables.employ_bin[t][s] = round(self.employ_bin[0,t,s].x,2)
-                    deploy_period_variables.employ_bin_granular[t][s] = round(self.employ_bin_granular[0, t_hat, t, s].x,2)
-                    deploy_period_variables.harvest_bin[t][s] = round(self.harvest_bin[0, t, s].x,2)
+                    deploy_period_variables.employ_bin[t][s] = round(self.employ_bin[location,t,s].x,2)
+                    deploy_period_variables.employ_bin_granular[t][s] = round(self.employ_bin_granular[location, t_hat, t, s].x,2)
+                    deploy_period_variables.harvest_bin[t][s] = round(self.harvest_bin[location, t, s].x,2)
             column.production_schedules[t_hat] = deploy_period_variables
 
         return column
 
+    def get_columns_from_multisite_solution(self, iteration):
+        return [self.get_column_object(l, iteration) for l in range(self.l_size)]
 
+
+    """
+     Get solution functions
+     """
 
     def get_deploy_period_list(self):
         deploy_periods_list = []
