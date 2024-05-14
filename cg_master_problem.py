@@ -21,25 +21,27 @@ class CGMasterProblem:
     def initialize_model(self): #TODO:FIx after constraints are made
         self.model = gp.Model(f"CG master problem model")
         self.declare_variables()
+        self.set_objective()
         self.add_MAB_company_constraint()
         self.add_convexity_constraint()
         self.add_EOH_constraint()
         self.add_variable_tracking_constraints()
-        self.set_objective()
 
-    def update_model(self):
+
+    def update_model(self, iteration):
+        self.iterations_k = iteration
         self.model.remove(self.model.getConstrs())
+        self.model.remove(self.model.getVars())
         self.declare_variables()
+        self.set_objective()
         self.add_MAB_company_constraint()
         self.add_convexity_constraint()
         self.add_EOH_constraint()
         self.add_variable_tracking_constraints()
-        self.set_objective()
 
-        pass
 
     def declare_variables(self):
-        self.lambda_var = self.model.addVars(configs.NUM_LOCATIONS, self.iterations_k, vtype=GRB.CONTINUOUS, lb=0)
+        self.lambda_var = self.model.addVars(configs.NUM_LOCATIONS, self.iterations_k, vtype=GRB.CONTINUOUS, lb=0, name="lambda_var")
         
         # Declaring the tracking variables
         self.y = self.model.addVars(self.l_size, self.f_size, self.t_size, vtype=GRB.CONTINUOUS, lb=0, name="Y")
@@ -63,7 +65,7 @@ class CGMasterProblem:
         self.model.setObjective(
             gp.quicksum(
                 gp.quicksum(
-                    parameters.scenario_probabilities[s] *
+                    configs.SCENARIO_PROBABILITIES[s] *
                     gp.quicksum(
                         self.columns[(l, k)].production_schedules[t_hat].w[f][t][s]
                         for t_hat in list(self.columns[(l, k)].production_schedules.keys())
@@ -95,7 +97,7 @@ class CGMasterProblem:
                 * self.lambda_var[l, k]
                 for l in range(self.l_size)
                 for k in range(self.iterations_k)
-            ) <= configs.MAB_COMPANY_LIMIT
+            ) <= configs.MAB_COMPANY_LIMIT * 1.001 #The 1.001 factor is here to deal with slight numeric instability when exporting variables from the sub-problem
             for t in range(self.t_size)
             for s in range(self.s_size)
         ), name="MAB"
@@ -106,13 +108,13 @@ class CGMasterProblem:
             gp.quicksum(
                 gp.quicksum(
                     self.columns[(l, k)].production_schedules[t_hat].x[f][parameters.number_periods - 1][s]
-                    for t_hat in list(self.columns[(l, k)].production_schedules.keys()) if t_hat >= self.t_size - parameters.max_periods_deployed #TODO: Can remove if statement, but this is a tighter formulation
+                    for t_hat in list(self.columns[(l, k)].production_schedules.keys()) #TODO: Can remove if statement, but this is a tighter formulation
                     for f in range(self.f_size)
                 )
                 * self.lambda_var[l, k]
                 for l in range(self.l_size)
                 for k in range(self.iterations_k)
-            ) <= configs.MAB_COMPANY_LIMIT * parameters.EOH_ratio_requirement
+            ) >= configs.MAB_COMPANY_LIMIT * parameters.EOH_ratio_requirement * 0.9999 #The 1.001 factor is here to deal with slight numeric instability when exporting variables from the sub-problem
             for s in range(self.s_size)
         ), name="EOH"
         )

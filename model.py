@@ -23,7 +23,8 @@ class Model:
                  EOH_shadow_prices_df = pd.DataFrame(),
                  input_data = InputData(),
                  parameters = initialization.parameters,
-                 scenario_probabilities = initialization.configs.SCENARIO_PROBABILITIES
+                 scenario_probabilities = initialization.configs.SCENARIO_PROBABILITIES,
+                 iterations = 0
                  ):
         #Imported classes, containing parameters and data
         self.input_data = input_data
@@ -50,7 +51,7 @@ class Model:
         self.EOH_shadow_prices_df = EOH_shadow_prices_df
 
         #Defining some instance attributes:
-        self.iterations = 0
+        self.iterations = iterations
         self.branching_variable_indices_up = []
         self.branching_variable_indices_down = []
 
@@ -247,8 +248,8 @@ class Model:
 
         # Printing solution
         if self.model.status != GRB.INFEASIBLE:
-            self.plot_solutions_x_values_per_site()
-            self.plot_solutions_x_values_aggregated()
+            #self.plot_solutions_x_values_per_site()
+            #self.plot_solutions_x_values_aggregated()
             return self.get_columns_from_multisite_solution(iteration)
         else:
             return None
@@ -314,10 +315,14 @@ class Model:
                 self.scenario_probabilities[s] *
                 gp.quicksum(
                     gp.quicksum(
-                        self.w[l, f, t_hat, t, s] - self.x[l, f, t_hat, t, s] * dual_variables.u_MAB[t][s]
-                        for t in range(self.growth_sets[l].loc[(self.smolt_weights[f], f"Scenario {s}")][t_hat],
+                        self.w[l, f, t_hat, t, s] for t in range(self.growth_sets[l].loc[(self.smolt_weights[f], f"Scenario {s}")][t_hat],
                                        min(t_hat + self.parameters.max_periods_deployed, self.t_size))
-                    ) + self.x[l, f, t_hat, self.parameters.number_periods - 1, s] * dual_variables.u_EOH[s]
+                    )
+                    - gp.quicksum(
+                        self.x[l, f, t_hat, t, s] * dual_variables.u_MAB[t][s]
+                        for t in range(t_hat, min(t_hat + self.parameters.max_periods_deployed, self.t_size + 1))
+                    )
+                    + self.x[l, f, t_hat, self.parameters.number_periods, s] * dual_variables.u_EOH[s]
                     for l in range(self.l_size)
                     for f in range(self.f_size)
                     for t_hat in range(self.t_size)
@@ -558,7 +563,11 @@ class Model:
     def add_end_of_horizon_constraint(self):
             for s in range(self.s_size):
                 self.model.addConstr(
-                    gp.quicksum(self.x[l, f, t_hat, 60, s] for l in range(self.l_size) for t_hat in range(60 - self.parameters.max_periods_deployed, 59) for f in range(self.f_size))
+                    gp.quicksum(self.x[l, f, t_hat, self.parameters.number_periods - 1, s]
+                                for l in range(self.l_size)
+                                for t_hat in range(self.parameters.number_periods - 1)
+                                for f in range(self.f_size)
+                                )
                     >= initialization.parameters.EOH_ratio_requirement * configs.MAB_COMPANY_LIMIT
                     , name="EOH down"
                 )
@@ -729,8 +738,8 @@ class Model:
             plt.title(f"Biomass at site {self.sites[l].name} iteration {self.iterations}")
             plt.ylabel("Biomass")
             plt.xlabel("Periods")
-            #path = f'results/plots/{self.sites[l].name}{self.iterations}.png'
-            #plt.savefig(path)
+            path = f'{configs.OUTPUT_DIR}plot_{self.sites[l].name}_{self.iterations}.png'
+            plt.savefig(path)
 
             plt.show()
             plt.clf()
@@ -833,7 +842,7 @@ class Model:
             for f in range(self.f_size):
                 for t in range(self.t_size):
                     deploy_period_variables.y[f][t] = round(self.y[location,f , t].x, 2)
-                    deploy_period_variables.deploy_type_bin[f][t] = round(self.deploy_type_bin[0, f, t].x, 2)
+                    deploy_period_variables.deploy_type_bin[f][t] = round(self.deploy_type_bin[location, f, t].x, 2)
                     for s in range(self.s_size):
                         deploy_period_variables.x[f][t][s] = round(self.x[location,f,t_hat,t,s].x, 2)
                         deploy_period_variables.w[f][t][s] = round(self.w[location, f, t_hat, t, s].x, 2)

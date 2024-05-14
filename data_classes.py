@@ -5,7 +5,7 @@ import initialization.configs as configs
 import initialization.parameters as parameters
 
 @dataclass
-class LShapedMasterProblemVariables():
+class LShapedMasterProblemVariables:
     l: int # Not sure we need this
     y: list[list[float]] # index order f, t. same unique l to be added in all subproblems from a master problem
     deploy_bin: list[int] # index order t. same unique l to be added in all subproblems from a master problem
@@ -18,7 +18,7 @@ class LShapedMasterProblemVariables():
         writer.close()
 
 @dataclass
-class LShapedSubProblemDualVariables(): 
+class LShapedSubProblemDualVariables:
     rho_1: list[float] # index order t. Also needs s as scenario index
     rho_2: list[list[float]] # index order f, t. Also needs s as scenario index
     rho_3: list[float] # index order t. Also needs s as scenario index
@@ -28,9 +28,9 @@ class LShapedSubProblemDualVariables():
     rho_7: list[float] # index order t. Also needs s as scenario index
 
 @dataclass
-class CGDualVariablesFromMaster():
-    iteration: int
-    u_MAB: list[list[float]] = field(default_factory=lambda: [[0.0 for s in range(configs.NUM_SCENARIOS)]for t in range(parameters.number_periods)]) #t, s
+class CGDualVariablesFromMaster:
+    iteration: int = field(default=0)
+    u_MAB: list[list[float]] = field(default_factory=lambda: [[0.0 for s in range(configs.NUM_SCENARIOS)]for t in range(parameters.number_periods + 1)]) #t, s
     u_EOH: list[float] = field(default_factory=lambda: [0.0 for s in range(configs.NUM_SCENARIOS)])#s
 
     def write_to_file(self):
@@ -40,7 +40,7 @@ class CGDualVariablesFromMaster():
         writer.close()
 
 @dataclass
-class DeployPeriodVariables():
+class DeployPeriodVariables:
     y: list[list[float]] = field(default_factory= lambda: [[0.0 for t in range(parameters.number_periods)] for f in range(configs.NUM_SMOLT_TYPES)])  # Index order: f, t
     x: list[list[list[float]]] = field(default_factory=lambda: [[[0.0 for s in range(configs.NUM_SCENARIOS)] for t in range(parameters.number_periods + 1)] for f in range(configs.NUM_SMOLT_TYPES)])# Index order: f, t, s
     w: list[list[list[float]]] = field(default_factory=lambda: [[[0.0 for s in range(configs.NUM_SCENARIOS)] for t in range(parameters.number_periods)] for f in range(configs.NUM_SMOLT_TYPES)]) #Index order: f, t, s
@@ -51,7 +51,7 @@ class DeployPeriodVariables():
     harvest_bin: list[list[float]] = field(default_factory=lambda:[[0.0 for s in range(configs.NUM_SCENARIOS)]for t in range(parameters.number_periods)]) #Index order: t, s
 
 @dataclass
-class CGColumn():
+class CGColumn:
     site: int
     iteration_k: int
     production_schedules: Dict[int, DeployPeriodVariables] = field(default_factory=dict)

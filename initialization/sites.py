@@ -141,7 +141,7 @@ medium_sites_list = [site_3, site_4, site_6, site_7, site_8,
                 site_9, site_10, site_15]
 
 #Defining the list containing 3 sites
-short_sites_list = [site_4, site_6, site_15]
+short_sites_list = [site_4, site_9, site_15]
 
 #Defining test instance with 2 sites
 test_sites_list = [site_4]
