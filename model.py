@@ -221,7 +221,9 @@ class Model:
 
     def create_zero_column(self, iteration):
         self.model = gp.Model(f"Find feasible solution")
-        self.model.Params.IntFeasTol = 1*10**(-9)
+        self.model.setParam("MIPFocus", 1)
+        # Stopping the model after one feasible solution is found
+        self.model.setParam('SolutionLimit', 10)
 
         # Declaing variables
         self.declare_variables()

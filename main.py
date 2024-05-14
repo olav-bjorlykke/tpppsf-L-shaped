@@ -18,10 +18,6 @@ import initialization.sites as sites
 def run_monolithic_model():
     model = Model(sites.SITE_LIST)
     model.solve_and_print_model()
-    model.model.write("model.lp")
-    columns = model.create_zero_column(0)
-    for column in columns:
-        column.write_to_file()
 
 def create_zero_column():
     initial = Model(sites.SITE_LIST)
@@ -98,8 +94,8 @@ def main():
     pass
 
 if __name__ == '__main__':
-    #run_monolithic_model()
-    column_generation()
+    run_monolithic_model()
+    #column_generation()
     #create_zero_column()
 
 
