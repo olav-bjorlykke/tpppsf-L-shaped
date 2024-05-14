@@ -221,6 +221,7 @@ class Model:
 
     def create_zero_column(self, iteration):
         self.model = gp.Model(f"Find feasible solution")
+        self.model.Params.IntFeasTol = 1*10**(-9)
 
         # Declaing variables
         self.declare_variables()
@@ -248,11 +249,11 @@ class Model:
 
         # Printing solution
         if self.model.status != GRB.INFEASIBLE:
-            #self.plot_solutions_x_values_per_site()
-            #self.plot_solutions_x_values_aggregated()
+            self.plot_solutions_x_values_per_site()
+            self.plot_solutions_x_values_aggregated()
             return self.get_columns_from_multisite_solution(iteration)
         else:
-            return None
+            print("Model infeasible")
 
 
     """
@@ -266,10 +267,10 @@ class Model:
 
         # Declaring the binary decision variables
         self.deploy_type_bin = self.model.addVars(self.l_size, self.f_size, self.t_size, vtype=GRB.BINARY)
-        self.deploy_bin = self.model.addVars(self.l_size, self.t_size, vtype=GRB.BINARY)
+        self.deploy_bin = self.model.addVars(self.l_size, self.t_size, vtype=GRB.BINARY, name="Deploy_bin")
         self.harvest_bin = self.model.addVars(self.l_size, self.t_size, self.s_size, vtype=GRB.BINARY)
-        self.employ_bin = self.model.addVars(self.l_size, self.t_size, self.s_size, vtype=GRB.BINARY)
-        self.employ_bin_granular = self.model.addVars(self.l_size, self.t_size, self.t_size, self.s_size, vtype=GRB.BINARY)
+        self.employ_bin = self.model.addVars(self.l_size, self.t_size, self.s_size, vtype=GRB.BINARY, name="Employ_bin")
+        self.employ_bin_granular = self.model.addVars(self.l_size, self.t_size, self.t_size, self.s_size, vtype=GRB.BINARY, name="Employ_bin_granular")
 
     def declare_lp_variables(self):
         self.x = self.model.addVars(self.l_size, self.f_size, self.t_size, self.t_size + 1, self.s_size,
@@ -448,14 +449,14 @@ class Model:
 
     def add_inactivity_constraints(self):
         #Fixed
-        self.model.addConstrs(
+        self.model.addConstrs((
             # This is the constraint (5.7) - ensuring that the site is not inactive longer than the max fallowing limit
             gp.quicksum(self.employ_bin[l, tau, s] for tau in range(t, min(t + self.parameters.max_fallowing_periods, self.t_size))) >= 1
             # The sum function and therefore the t set is not implemented exactly like in the mathematical model, but functionality is the same
             for s in range(self.s_size)
             for t in range(self.t_size - initialization.parameters.max_fallowing_periods)
             for l in range(self.l_size)
-        )
+        ), name="inactivity_constraints")
 
     def add_harvesting_constraints(self):
         #Fixed
@@ -628,6 +629,15 @@ class Model:
             self.x[l, f, t_hat, t, s] <= 0
             for t_hat in range(self.t_size)
             for t in range(0, t_hat)
+            for l in range(self.l_size)
+            for f in range(self.f_size)
+            for s in range(self.s_size)
+        )
+
+        self.model.addConstrs(
+            self.x[l, f, t_hat, t, s] <= 0
+            for t_hat in range(self.t_size)
+            for t in range(min(t_hat + self.parameters.max_periods_deployed, self.t_size), self.t_size)
             for l in range(self.l_size)
             for f in range(self.f_size)
             for s in range(self.s_size)

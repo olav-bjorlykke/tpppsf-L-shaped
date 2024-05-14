@@ -23,12 +23,29 @@ def run_monolithic_model():
     for column in columns:
         column.write_to_file()
 
+def create_zero_column():
+    initial = Model(sites.SITE_LIST)
+    initial_columns = initial.create_zero_column(0)
+    initial.model.write("zero.lp")
+    if initial.model.status == GRB.OPTIMAL:
+        # Open a file to write variable values
+        with open("variable_values.txt", "w") as file:
+            # Iterate through variables and write their values to the file
+            for var in initial.model.getVars():
+                file.write(f"{var.varName}: {var.x}\n")
+        print("Variable values written to variable_values.txt")
+    else:
+        print("Optimization was not successful")
+
+
+    for column in initial_columns:
+        column.write_to_file()
 
 def column_generation():
     master = CGMasterProblem()
     initial = Model(sites.SITE_LIST)
     initial_columns = initial.create_initial_columns(0)
-    initial_columns2 = initial.create_initial_columns(1)
+    initial_columns2 = initial.create_zero_column(1)
 
     for column in initial_columns:
         master.columns[(column.site, column.iteration_k)] = column
@@ -39,7 +56,9 @@ def column_generation():
         column.write_to_file()
 
     master.initialize_model()
-    for j in range(2,10):
+    optimal = False
+    j = 2
+    while not optimal:
         master.update_model(iteration=j)
         master.solve()
         if master.model.status != GRB.OPTIMAL:
@@ -64,7 +83,14 @@ def column_generation():
             print("Adding colum to master:", i, j)
             master.columns[(i, j)] = column
         print(master.columns.keys())
-        _ = 1
+
+        sum = 0.0
+        for l in range(configs.NUM_LOCATIONS):
+            sum += master.lambda_var[l, j - 1].x
+        if sum == 0.0 and j >= 4:
+            optimal = True
+        j += 1
+
 
 
 
@@ -74,7 +100,7 @@ def main():
 if __name__ == '__main__':
     #run_monolithic_model()
     column_generation()
-
+    #create_zero_column()
 
 
 
