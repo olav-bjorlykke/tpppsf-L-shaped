@@ -14,12 +14,13 @@ import time
 from cg_master_problem import CGMasterProblem
 import initialization.sites as sites
 import initialization.parameters as parameters
+from branch_and_price import BranchAndPrice
+from data_classes import NodeLabel
 
 
 def run_monolithic_model():
     model = Model(sites.SITE_LIST)
     model.solve_and_print_model()
-
 def create_zero_column():
     initial = Model(sites.SITE_LIST)
     initial_columns = initial.create_zero_column(0)
@@ -45,14 +46,6 @@ def column_generation():
     initial.model.write("initial.lp")
     initial_columns2 = initial.create_zero_column(1)
     initial.model.write("zero.lp")
-
-
-    for l in range(len(sites.SITE_LIST)):
-        for t_hat in range(parameters.number_periods):
-            for s in range(configs.NUM_SCENARIOS):
-                print(f"X[{l},0, {t_hat},60,{s}]", initial.x[l, 0, t_hat, 60, s].x)
-
-
 
 
     for column in initial_columns:
@@ -99,16 +92,30 @@ def column_generation():
             optimal = True
         j += 1
 
-
-
-
 def main():
-    pass
+    master = CGMasterProblem()
+    initial = Model(sites.SITE_LIST)
+    initial_columns = initial.create_initial_columns(0)
+    initial.model.write("initial.lp")
+    initial_columns2 = initial.create_zero_column(1)
+    initial.model.write("zero.lp")
+
+
+    for column in initial_columns:
+        master.columns[(column.site, column.iteration_k)] = column
+        column.write_to_file()
+
+    for column in initial_columns2:
+        master.columns[(column.site, column.iteration_k)] = column
+        column.write_to_file()
+
+    master.initialize_model()
+    b_and_p = BranchAndPrice()
+    node = NodeLabel(number=0, parent=0, level=0)
+    b_and_p.column_generation(master=master, node_label=node)
 
 if __name__ == '__main__':
-    #run_monolithic_model()
-    column_generation()
-    #create_zero_column()
+    main()
 
 
 

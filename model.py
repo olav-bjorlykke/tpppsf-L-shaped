@@ -52,8 +52,7 @@ class Model:
 
         #Defining some instance attributes:
         self.iterations = iterations
-        self.branching_variable_indices_up = []
-        self.branching_variable_indices_down = []
+
 
 
     """
@@ -141,7 +140,7 @@ class Model:
 
         #Putting solution into variables for export
 
-    def solve_as_sub_problem(self, dual_variables, up_branching_index=[], down_branching_index=[]):
+    def solve_as_sub_problem(self, dual_variables, up_branching_indices=[], down_branching_indices=[], iteration=0):
         start_time = time.perf_counter()
         self.model = gp.Model(f"Single site solution")
 
@@ -166,14 +165,14 @@ class Model:
 
         #Note that MAB constraint and end of horizon constraints are not added here.
 
-        self.add_up_branching_constraints(up_branching_index)
-        self.add_down_branching_constraints(down_branching_index)
+        self.add_up_branching_constraints(up_branching_indices)
+        self.add_down_branching_constraints(down_branching_indices)
 
         # Running gurobi to optimize model
         self.model.optimize()
 
-        if self.model.status != GRB.INFEASIBLE:
-            self.plot_solutions_x_values_per_site()
+        #if self.model.status != GRB.INFEASIBLE:
+           #self.plot_solutions_x_values_per_site(iteration)
 
     """
     Function for creating initial columns
@@ -651,17 +650,17 @@ class Model:
             for s in range(self.s_size)
         )
 
-    def add_up_branching_constraints(self, inde):
-        for indice in indixes:
+    def add_up_branching_constraints(self, indices):
+        for index in indices:
             self.model.addConstr(
-                self.deploy_bin[0, indice] == 1, #l set to 0 as this should only be used when there is only one site
+                self.deploy_bin[0, index] == 1, #l set to 0 as this should only be used when there is only one site
                 name = "Branching constraint"
             )
 
-    def add_down_branching_constraints(self, indexes):
-        for indice in self.branching_variable_indices_down:
+    def add_down_branching_constraints(self, indices):
+        for index in indices:
             self.model.addConstr(
-                self.deploy_bin[0, indice] == 0, #l set to 0 as this should only be used when there is only one site
+                self.deploy_bin[0, index] == 0, #l set to 0 as this should only be used when there is only one site
                 name = "Branching constraint"
             )
 
@@ -719,7 +718,7 @@ class Model:
     """
     Plot functions
     """
-    def plot_solutions_x_values_per_site(self):
+    def plot_solutions_x_values_per_site(self, iteration = 0):
         """
         EXPLANATION: This function plots the x values, i.e the biomass at the location for every period in the planning horizion
         :return:
@@ -753,10 +752,10 @@ class Model:
             for scenario in x_values:
                 plt.plot(x_axis, scenario)
 
-            plt.title(f"Biomass at site {self.sites[l].name} iteration {self.iterations}")
+            plt.title(f"Biomass at site {self.sites[l].name} iteration {iteration}")
             plt.ylabel("Biomass")
             plt.xlabel("Periods")
-            path = f'{configs.OUTPUT_DIR}plot_{self.sites[l].name}_{self.iterations}.png'
+            path = f'{configs.OUTPUT_DIR}plot_{self.sites[l].name}_{iteration}.png'
             plt.savefig(path)
 
             plt.show()

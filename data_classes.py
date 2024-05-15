@@ -88,4 +88,14 @@ class CGColumn:
         df_sorted = df_reordered.sort_index(level=["Scenario", "Smolt Type", "Deploy Period", "Period"], ascending=[True,True,True,True])
         df_sorted.to_excel(f"{configs.OUTPUT_DIR}column_variable_values_site{self.site}_iteration{self.iteration_k}.xlsx")
 
+@dataclass
+class NodeLabel:
+    number: int
+    parent: int
+    level: int
+    LP_solution: float = field(default=0)
+    MIP_solution: float = field(default=0)
+    up_branching_indices: list[list[int]] = field(default_factory= lambda: [[] for _ in range(configs.NUM_LOCATIONS)]) #site, index
+    down_branching_indices: list[list[int]] = field(default_factory= lambda: [[] for _ in range(configs.NUM_LOCATIONS)]) #site, index
+
 
