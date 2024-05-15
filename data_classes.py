@@ -80,7 +80,7 @@ class CGColumn:
                         pd.DataFrame(s_list, columns=columns, index=[i for i in range(configs.NUM_SCENARIOS)]))
                 f_list.append(pd.concat(t_list, keys=[t for t in range(parameters.number_periods)]))
             df = pd.concat(f_list, keys=[i for i in range(configs.NUM_SMOLT_TYPES)])
-            df_filtered = df.loc[~(df[["X", "W"]] == 0).all(axis=1)]
+            df_filtered =  df #df.loc[~(df[["X", "W"]] == 0).all(axis=1)]
             deploy_period_list.append(df_filtered)
         df = pd.concat(deploy_period_list, keys=list(self.production_schedules.keys()))
         df.index.names = ["Deploy Period", "Smolt Type", "Period", "Scenario"]

@@ -13,6 +13,7 @@ import initialization.configs as configs
 import time
 from cg_master_problem import CGMasterProblem
 import initialization.sites as sites
+import initialization.parameters as parameters
 
 
 def run_monolithic_model():
@@ -41,7 +42,18 @@ def column_generation():
     master = CGMasterProblem()
     initial = Model(sites.SITE_LIST)
     initial_columns = initial.create_initial_columns(0)
+    initial.model.write("initial.lp")
     initial_columns2 = initial.create_zero_column(1)
+    initial.model.write("zero.lp")
+
+
+    for l in range(len(sites.SITE_LIST)):
+        for t_hat in range(parameters.number_periods):
+            for s in range(configs.NUM_SCENARIOS):
+                print(f"X[{l},0, {t_hat},60,{s}]", initial.x[l, 0, t_hat, 60, s].x)
+
+
+
 
     for column in initial_columns:
         master.columns[(column.site, column.iteration_k)] = column
@@ -59,7 +71,7 @@ def column_generation():
         master.solve()
         if master.model.status != GRB.OPTIMAL:
             master.model.computeIIS()
-            master.model.write("model.ilp")
+            master.model.write("master.ilp")
         else:
             master.model.write(f"model{j}.lp")
             for l in range(3):
@@ -94,8 +106,8 @@ def main():
     pass
 
 if __name__ == '__main__':
-    run_monolithic_model()
-    #column_generation()
+    #run_monolithic_model()
+    column_generation()
     #create_zero_column()
 
 

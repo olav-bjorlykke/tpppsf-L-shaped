@@ -98,7 +98,7 @@ class CGMasterProblem:
                 for l in range(self.l_size)
                 for k in range(self.iterations_k)
             ) <= configs.MAB_COMPANY_LIMIT * 1.001 #The 1.001 factor is here to deal with slight numeric instability when exporting variables from the sub-problem
-            for t in range(self.t_size)
+            for t in range(self.t_size + 1)
             for s in range(self.s_size)
         ), name="MAB"
         )
@@ -107,14 +107,14 @@ class CGMasterProblem:
         self.model.addConstrs((
             gp.quicksum(
                 gp.quicksum(
-                    self.columns[(l, k)].production_schedules[t_hat].x[f][parameters.number_periods - 1][s]
-                    for t_hat in list(self.columns[(l, k)].production_schedules.keys()) #TODO: Can remove if statement, but this is a tighter formulation
+                    self.columns[(l, k)].production_schedules[t_hat].x[f][parameters.number_periods][s]
+                    for t_hat in list(self.columns[(l, k)].production_schedules.keys())
                     for f in range(self.f_size)
                 )
                 * self.lambda_var[l, k]
                 for l in range(self.l_size)
                 for k in range(self.iterations_k)
-            ) >= configs.MAB_COMPANY_LIMIT * parameters.EOH_ratio_requirement * 0.9999 #The 1.001 factor is here to deal with slight numeric instability when exporting variables from the sub-problem
+            ) >= configs.MAB_COMPANY_LIMIT * parameters.EOH_ratio_requirement * 0.9999 #The 0.9999 factor is here to deal with slight numeric instability when exporting variables from the sub-problem
             for s in range(self.s_size)
         ), name="EOH"
         )
@@ -256,7 +256,7 @@ class CGMasterProblem:
 
     def get_dual_variables(self):
         dual_variables = CGDualVariablesFromMaster(iteration=self.iterations_k)
-        for t in range(self.t_size):
+        for t in range(self.t_size + 1):
             for s in range(self.s_size):
                 constr = self.model.getConstrByName(f"MAB[{t},{s}]")
                 dual = constr.getAttr("Pi")

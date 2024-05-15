@@ -185,7 +185,9 @@ class Model:
         #Telling the model to focus on finding a feasible solution
         self.model.setParam("MIPFocus", 1)
         #Stopping the model after one feasible solution is found
-        self.model.setParam('SolutionLimit', 10)
+        self.model.setParam(GRB.Param.SolutionLimit, 5)
+
+
 
         # Declaing variables
         self.declare_variables()
@@ -213,6 +215,7 @@ class Model:
 
         # Printing solution
         if self.model.status != GRB.INFEASIBLE:
+            pass
             self.plot_solutions_x_values_per_site()
             self.plot_solutions_x_values_aggregated()
             return self.get_columns_from_multisite_solution(iteration) #Setting the iteration to be 0 for t
@@ -223,7 +226,7 @@ class Model:
         self.model = gp.Model(f"Find feasible solution")
         self.model.setParam("MIPFocus", 1)
         # Stopping the model after one feasible solution is found
-        self.model.setParam('SolutionLimit', 10)
+        self.model.setParam(GRB.Param.SolutionLimit, 5)
 
         # Declaing variables
         self.declare_variables()
@@ -325,7 +328,7 @@ class Model:
                         self.x[l, f, t_hat, t, s] * dual_variables.u_MAB[t][s]
                         for t in range(t_hat, min(t_hat + self.parameters.max_periods_deployed, self.t_size + 1))
                     )
-                    + self.x[l, f, t_hat, self.parameters.number_periods, s] * dual_variables.u_EOH[s]
+                    - self.x[l, f, t_hat, self.parameters.number_periods, s] * dual_variables.u_EOH[s]
                     for l in range(self.l_size)
                     for f in range(self.f_size)
                     for t_hat in range(self.t_size)
@@ -494,11 +497,11 @@ class Model:
             self.x[l, f, t_hat, t + 1, s] == (1 - self.parameters.expected_production_loss) * self.x[l, f, t_hat, t, s] *
             self.growth_factors[l].loc[(self.smolt_weights[f], f"Scenario {s}", t_hat)][t]
             for l in range(self.l_size)
-            for t_hat in range(self.t_size - 1)
+            for t_hat in range(self.t_size)
             for f in range(self.f_size)
             for s in range(self.s_size)
             for t in
-            range(min(t_hat, self.t_size), min(self.growth_sets[l].loc[(self.smolt_weights[f], f"Scenario {s}")][t_hat], self.t_size))
+            range(t_hat, min(self.growth_sets[l].loc[(self.smolt_weights[f], f"Scenario {s}")][t_hat], self.t_size))
         )
 
         self.model.addConstrs(  # This is the constraint (5.11) - Which tracks the biomass employed in the harvest period
@@ -558,7 +561,10 @@ class Model:
             for t in range(self.t_size + 1):
                 for s in range(self.s_size):
                     self.model.addConstr(
-                        gp.quicksum(self.x[l, f, t_hat, t, s] for l in range(self.l_size) for t_hat in range(min(t + 1, 60)) for f in range(self.f_size))
+                        gp.quicksum(self.x[l, f, t_hat, t, s]
+                                    for l in range(self.l_size)
+                                    for t_hat in range(min(t + 1, 60))
+                                    for f in range(self.f_size))
                          <= configs.MAB_COMPANY_LIMIT
                         , name="company MAB limit"
                     )
@@ -566,9 +572,9 @@ class Model:
     def add_end_of_horizon_constraint(self):
             for s in range(self.s_size):
                 self.model.addConstr(
-                    gp.quicksum(self.x[l, f, t_hat, self.parameters.number_periods - 1, s]
+                    gp.quicksum(self.x[l, f, t_hat, self.parameters.number_periods, s]
                                 for l in range(self.l_size)
-                                for t_hat in range(self.parameters.number_periods - 1)
+                                for t_hat in range(self.parameters.number_periods)
                                 for f in range(self.f_size)
                                 )
                     >= initialization.parameters.EOH_ratio_requirement * configs.MAB_COMPANY_LIMIT
@@ -639,7 +645,7 @@ class Model:
         self.model.addConstrs(
             self.x[l, f, t_hat, t, s] <= 0
             for t_hat in range(self.t_size)
-            for t in range(min(t_hat + self.parameters.max_periods_deployed, self.t_size), self.t_size)
+            for t in range(min(t_hat + self.parameters.max_periods_deployed, self.t_size + 1), self.t_size + 1)
             for l in range(self.l_size)
             for f in range(self.f_size)
             for s in range(self.s_size)
@@ -856,8 +862,10 @@ class Model:
                     deploy_period_variables.y[f][t] = round(self.y[location,f , t].x, 2)
                     deploy_period_variables.deploy_type_bin[f][t] = round(self.deploy_type_bin[location, f, t].x, 2)
                     for s in range(self.s_size):
-                        deploy_period_variables.x[f][t][s] = round(self.x[location,f,t_hat,t,s].x, 2)
                         deploy_period_variables.w[f][t][s] = round(self.w[location, f, t_hat, t, s].x, 2)
+                for t in range(self.t_size +1):
+                    for s in range(self.s_size):
+                        deploy_period_variables.x[f][t][s] = round(self.x[location,f,t_hat,t,s].x, 2)
             for t in range(self.t_size):
                 deploy_period_variables.deploy_bin[t] = round(self.deploy_bin[location,t].x,2)
                 for s in range(self.s_size):
