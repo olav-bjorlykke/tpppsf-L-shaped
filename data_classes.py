@@ -1,3 +1,4 @@
+import dataclasses
 from dataclasses import dataclass, field
 from typing import Dict
 import pandas as pd
@@ -38,6 +39,17 @@ class CGDualVariablesFromMaster:
         pd.DataFrame(self.u_MAB).to_excel(writer, index=False, sheet_name="u_MAB")
         pd.Series(self.u_EOH).to_excel(writer, index=False, sheet_name="u_EOH")
         writer.close()
+    
+    def __eq__(self, other):
+        for i in range(parameters.number_periods + 1):
+            for j in range(configs.NUM_SCENARIOS):
+                if self.u_MAB[i][j] != other.u_MAB[i][j]:
+                    return False
+        for i in range(configs.NUM_SCENARIOS):
+            if self.u_EOH[i] != other.u_EOH[i]:
+                return False
+        return True
+        
 
 @dataclass
 class DeployPeriodVariables:
@@ -55,6 +67,7 @@ class CGColumn:
     site: int
     iteration_k: int
     production_schedules: Dict[int, DeployPeriodVariables] = field(default_factory=dict)
+
     def write_to_file(self):
         deploy_period_list = []
         for deploy_period, deploy_period_variables in self.production_schedules.items():
@@ -76,11 +89,10 @@ class CGColumn:
                         s_list.append(variable_list)
                     columns = ["Y", "X", "W", "deploy_bin", "deploy_type_bin", "employ_bin", "employ_bin_gran",
                                "harvest_bin"]
-                    t_list.append(
-                        pd.DataFrame(s_list, columns=columns, index=[i for i in range(configs.NUM_SCENARIOS)]))
+                    t_list.append(pd.DataFrame(s_list, columns=columns, index=[i for i in range(configs.NUM_SCENARIOS)]))
                 f_list.append(pd.concat(t_list, keys=[t for t in range(parameters.number_periods)]))
             df = pd.concat(f_list, keys=[i for i in range(configs.NUM_SMOLT_TYPES)])
-            df_filtered =  df #df.loc[~(df[["X", "W"]] == 0).all(axis=1)]
+            df_filtered = df.loc[~(df[["X", "W"]] == 0).all(axis=1)]
             deploy_period_list.append(df_filtered)
         df = pd.concat(deploy_period_list, keys=list(self.production_schedules.keys()))
         df.index.names = ["Deploy Period", "Smolt Type", "Period", "Scenario"]

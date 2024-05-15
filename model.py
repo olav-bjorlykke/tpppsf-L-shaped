@@ -214,9 +214,8 @@ class Model:
 
         # Printing solution
         if self.model.status != GRB.INFEASIBLE:
-            pass
-            self.plot_solutions_x_values_per_site()
-            self.plot_solutions_x_values_aggregated()
+            #self.plot_solutions_x_values_per_site()
+            #self.plot_solutions_x_values_aggregated()
             return self.get_columns_from_multisite_solution(iteration) #Setting the iteration to be 0 for t
         else:
             return None
@@ -253,8 +252,8 @@ class Model:
 
         # Printing solution
         if self.model.status != GRB.INFEASIBLE:
-            self.plot_solutions_x_values_per_site()
-            self.plot_solutions_x_values_aggregated()
+            #self.plot_solutions_x_values_per_site()
+            #self.plot_solutions_x_values_aggregated()
             return self.get_columns_from_multisite_solution(iteration)
         else:
             print("Model infeasible")

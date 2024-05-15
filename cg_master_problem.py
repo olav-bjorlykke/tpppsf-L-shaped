@@ -28,7 +28,7 @@ class CGMasterProblem:
         self.add_variable_tracking_constraints()
 
 
-    def update_model(self):
+    def update_model(self, node_label):
         self.iterations_k += 1
         self.model.remove(self.model.getConstrs())
         self.model.remove(self.model.getVars())
@@ -38,6 +38,7 @@ class CGMasterProblem:
         self.add_convexity_constraint()
         self.add_EOH_constraint()
         self.add_variable_tracking_constraints()
+        self.add_branching_constraints(node_label)
 
 
     def declare_variables(self):
@@ -133,9 +134,21 @@ class CGMasterProblem:
     """
     Branching constraints
     """
-    def add_branching_constraints(self):
-        #TODO:Add once format of branching information is set
-        pass
+    def add_branching_constraints(self, node_label):
+        for location in range(len(node_label.up_branching_indices)):
+            for indicie in node_label.up_branching_indices[location]:
+                self.model.addConstr((
+                    self.deploy_bin[location, indicie] == 1
+                ))
+        
+        for location in range(len(node_label.down_branching_indices)):
+            for indicie in node_label.down_branching_indices[location]:
+                self.model.addConstr((
+                    self.deploy_bin[location, indicie] == 0
+                ))
+    
+
+            
 
     """
     Variable tracking constraints
@@ -269,4 +282,20 @@ class CGMasterProblem:
 
         return dual_variables
 
+    def get_branching_variable(self):
+        closest_to_1_location_and_index = (0, 0)
+        value_closest_to_1 = 0
+        for l in range(self.l_size):
+            for t in range(self.t_size):
+                if self.deploy_bin[l, t].X > value_closest_to_1 and self.deploy_bin[l,t].X != 1:
+                    value_closest_to_1 = self.deploy_bin[l,t].X
+                    closest_to_1_location_and_index = l, t
+        return closest_to_1_location_and_index
 
+    def check_integer_feasible(self):
+        for i in range(configs.NUM_LOCATIONS):
+            for j in range(self.iterations_k):
+                if not (self.lambda_var[i,j].x == 0 or self.lambda_var[i,j].x == 1):
+                    return False
+        return True        
+        

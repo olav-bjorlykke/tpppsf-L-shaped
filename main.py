@@ -49,6 +49,7 @@ def column_generation():
 
 
     for column in initial_columns:
+        print(column)
         master.columns[(column.site, column.iteration_k)] = column
         column.write_to_file()
 
@@ -92,22 +93,20 @@ def column_generation():
             optimal = True
         j += 1
 
-def main():
+def main1():
     master = CGMasterProblem()
     initial = Model(sites.SITE_LIST)
     initial_columns = initial.create_initial_columns(0)
-    initial.model.write("initial.lp")
     initial_columns2 = initial.create_zero_column(1)
-    initial.model.write("zero.lp")
 
 
     for column in initial_columns:
         master.columns[(column.site, column.iteration_k)] = column
-        column.write_to_file()
+        #column.write_to_file()
 
     for column in initial_columns2:
         master.columns[(column.site, column.iteration_k)] = column
-        column.write_to_file()
+        #column.write_to_file()
 
     master.initialize_model()
     b_and_p = BranchAndPrice()
@@ -115,7 +114,7 @@ def main():
     b_and_p.column_generation(master=master, node_label=node)
 
 if __name__ == '__main__':
-    main()
+    main1()
 
 
 
