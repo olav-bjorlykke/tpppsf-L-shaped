@@ -28,8 +28,8 @@ class CGMasterProblem:
         self.add_variable_tracking_constraints()
 
 
-    def update_model(self, iteration):
-        self.iterations_k = iteration
+    def update_model(self):
+        self.iterations_k += 1
         self.model.remove(self.model.getConstrs())
         self.model.remove(self.model.getVars())
         self.declare_variables()

@@ -141,7 +141,7 @@ class Model:
 
         #Putting solution into variables for export
 
-    def solve_as_sub_problem(self, dual_variables):
+    def solve_as_sub_problem(self, dual_variables, up_branching_index=[], down_branching_index=[]):
         start_time = time.perf_counter()
         self.model = gp.Model(f"Single site solution")
 
@@ -166,8 +166,8 @@ class Model:
 
         #Note that MAB constraint and end of horizon constraints are not added here.
 
-        #self.add_up_branching_constraints()
-        #self.add_down_branching_constraints()
+        self.add_up_branching_constraints(up_branching_index)
+        self.add_down_branching_constraints(down_branching_index)
 
         # Running gurobi to optimize model
         self.model.optimize()
@@ -651,14 +651,14 @@ class Model:
             for s in range(self.s_size)
         )
 
-    def add_up_branching_constraints(self):
-        for indice in self.branching_variable_indices_up:
+    def add_up_branching_constraints(self, inde):
+        for indice in indixes:
             self.model.addConstr(
                 self.deploy_bin[0, indice] == 1, #l set to 0 as this should only be used when there is only one site
                 name = "Branching constraint"
             )
 
-    def add_down_branching_constraints(self):
+    def add_down_branching_constraints(self, indexes):
         for indice in self.branching_variable_indices_down:
             self.model.addConstr(
                 self.deploy_bin[0, indice] == 0, #l set to 0 as this should only be used when there is only one site
