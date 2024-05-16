@@ -387,12 +387,12 @@ class CGMasterProblem:
 
         return dual_variables
 
-    def get_branching_variable(self): #TODO: Fix, currently returns [0,0] multiple times in a row
+    def get_branching_variable(self, branched_indexes): #TODO: Fix, currently returns [0,0] multiple times in a row
         closest_to_1_location_and_index = [0, 0]
         value_closest_to_1 = 0
         for l in range(self.l_size):
             for t in range(self.t_size):
-                if (self.deploy_bin[l, t].X > value_closest_to_1) and (self.deploy_bin[l, t].X != 1):
+                if (self.deploy_bin[l, t].X > value_closest_to_1) and ([l, t] not in branched_indexes):
                     value_closest_to_1 = self.deploy_bin[l,t].X
                     closest_to_1_location_and_index = [l, t]
         return closest_to_1_location_and_index
