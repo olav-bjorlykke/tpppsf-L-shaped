@@ -161,7 +161,6 @@ class CGMasterProblem:
                     deploy_periods[l].append(deploy_period)
 
         deploy_periods_filtered = [set(deploy_periods[l]) for l in range(self.l_size)]
-        print("Deploy periods filtered",deploy_periods_filtered)
 
 
         self.model.addConstrs((

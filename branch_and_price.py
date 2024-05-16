@@ -5,10 +5,12 @@ from data_classes import NodeLabel
 import initialization.configs as configs
 import copy
 from gurobipy import GRB # type: ignore
+import logging
 
 class BranchAndPrice:
     def __init__(self):
         self.master = CGMasterProblem()
+        self.set_up_logging()
 
     def branch_and_price(self):
         self.generate_initial_columns()
@@ -22,6 +24,7 @@ class BranchAndPrice:
             print(q)
             current_node = q.pop(0)
             feasible = self.column_generation(current_node)
+
             print("#### finished column generation 1 ####")
             solved_nodes.append(current_node)
             print(solved_nodes)
@@ -40,13 +43,14 @@ class BranchAndPrice:
                 #self.write_node_to_file(current_node)
                 continue
             branching_variable = self.master.get_branching_variable() # Returns a list with [location, index] for the branching variable
+            self.bp_logger.info(f"Node: {current_node.number} / iteration {self.master.iterations_k} / branching on variable: {branching_variable}")
             node_number += 1
             new_up_branching_indicies = copy.deepcopy(current_node.up_branching_indices)
             new_down_branching_indicies = copy.deepcopy(current_node.down_branching_indices)
             new_up_branching_indicies[branching_variable[0]].append(branching_variable[1])
             new_down_branching_indicies[branching_variable[0]].append(branching_variable[1])
-            print(new_up_branching_indicies)
-            print(new_down_branching_indicies)
+            print("BRANCH INDICE UP",new_up_branching_indicies)
+            print("BRANCH INDICE UP",new_down_branching_indicies)
             new_node_up = NodeLabel(number=node_number, 
                                     parent=current_node.number, 
                                     level=current_node.level+1, 
@@ -68,24 +72,20 @@ class BranchAndPrice:
     def column_generation(self, node_label):
         #Initializing sub problems
         sub_problems = [Model(sites.SITE_LIST[i], self.master.iterations_k + 1) for i in range(len(sites.SITE_LIST))]
-        
+
+        self.master.model.setParam('OutputFlag', 0)
+
         previous_dual_variables = CGDualVariablesFromMaster()
         dual_variables = CGDualVariablesFromMaster(u_EOH=[1 for _ in range(configs.NUM_SCENARIOS)])
         while previous_dual_variables != dual_variables:
             previous_dual_variables = dual_variables
-            print(node_label)
             self.master.update_model(node_label) 
-            self.master.solve()                  # I think maybe this becomes infeasible when introducing the branching constraints and solving before generating more columns - any waht to get around this?
-
+            self.master.solve()                  #TODO:I think maybe this becomes infeasible when introducing the branching constraints and solving before generating more columns - any way to get around this?
+            self.master_logger.info(f"{self.master.iterations_k}:objective = {self.master.model.objVal}")
             if self.master.model.status == GRB.INFEASIBLE:
                 return False                     # To prevent errors, handled by pruning in B&P
             dual_variables = self.master.get_dual_variables()
             dual_variables.write_to_file()
-
-            for l in range(3):
-                for k in range(self.master.iterations_k):
-                    print(self.master.lambda_var[l, k].x)
-
             for i, sub in enumerate(sub_problems):
                 sub.solve_as_sub_problem(dual_variables, up_branching_indices=node_label.up_branching_indices[i],
                                          down_branching_indices=node_label.down_branching_indices[i],
@@ -95,8 +95,8 @@ class BranchAndPrice:
                 column.site = i
                 column.write_to_file()
                 self.master.columns[(i, self.master.iterations_k)] = column
-            
-        print(f"########  Solved node {node_label.number} ############")
+                self.sub_logger.info(f"iteration {self.master.iterations_k} / site {i}:{sub.model.objVal}")
+
         return True
 
 
@@ -115,6 +115,35 @@ class BranchAndPrice:
             #column.write_to_file()
 
         self.master.initialize_model()
+
+    def set_up_logging(self):
+        logging.basicConfig(
+            level=logging.INFO,
+            filemode='a'  # Set filemode to 'w' for writing (use 'a' to append)
+        )
+        self.general_logger = logging.getLogger("general_logger")
+
+        #Creating logger for logging master problem values
+        self.master_logger = logging.getLogger("master_logger")
+        file_handler1 = logging.FileHandler('master_logger.log')
+        file_handler1.setLevel(logging.INFO)
+        self.master_logger.addHandler(file_handler1)
+
+
+        #Creating logger for logging sub-problem values
+        self.sub_logger = logging.getLogger("sub_logger")
+        file_handler2 = logging.FileHandler('sub_logger.log')
+        file_handler2.setLevel(logging.INFO)
+        self.sub_logger.addHandler(file_handler2)
+
+        #Creating logger for Branch and Price:
+        self.bp_logger = logging.getLogger("bp_logger")
+        file_handler3 = logging.FileHandler('bp_logger.log')
+        file_handler3.setLevel(logging.INFO)
+        self.bp_logger.addHandler(file_handler3)
+
+
+
 
     """
     def write_node_to_file(self, node_label):

@@ -60,6 +60,7 @@ class Model:
     """
     def solve_and_print_model(self):
         self.model = gp.Model(f"Single site solution")
+        self.model.setParam('OutputFlag', 0)
 
         #Declaing variables
         self.declare_variables()
@@ -104,6 +105,7 @@ class Model:
         :return:
         """
         self.model = gp.Model(f"Single site solution")
+        self.model.setParam('OutputFlag', 0)
 
         #Declaing variables
         self.declare_variables()
@@ -143,6 +145,7 @@ class Model:
     def solve_as_sub_problem(self, dual_variables, up_branching_indices=[], down_branching_indices=[], iteration=0):
         start_time = time.perf_counter()
         self.model = gp.Model(f"Single site solution")
+        self.model.setParam('OutputFlag', 0)
 
         # Declaing variables
         self.declare_variables()
@@ -171,8 +174,8 @@ class Model:
         # Running gurobi to optimize model
         self.model.optimize()
 
-        if self.model.status != GRB.INFEASIBLE:
-           self.plot_solutions_x_values_per_site(iteration)
+        #if self.model.status != GRB.INFEASIBLE:
+           #self.plot_solutions_x_values_per_site(iteration)
 
     """
     Function for creating initial columns
@@ -214,8 +217,8 @@ class Model:
 
         # Printing solution
         if self.model.status != GRB.INFEASIBLE:
-            self.plot_solutions_x_values_per_site()
-            self.plot_solutions_x_values_aggregated()
+            #self.plot_solutions_x_values_per_site()
+            #self.plot_solutions_x_values_aggregated()
             return self.get_columns_from_multisite_solution(iteration) #Setting the iteration to be 0 for t
         else:
             return None
@@ -252,8 +255,8 @@ class Model:
 
         # Printing solution
         if self.model.status != GRB.INFEASIBLE:
-            self.plot_solutions_x_values_per_site()
-            self.plot_solutions_x_values_aggregated()
+            #self.plot_solutions_x_values_per_site()
+            #self.plot_solutions_x_values_aggregated()
             return self.get_columns_from_multisite_solution(iteration)
         else:
             print("Model infeasible")
