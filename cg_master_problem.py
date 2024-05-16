@@ -153,6 +153,17 @@ class CGMasterProblem:
     Variable tracking constraints
     """
     def add_variable_tracking_constraints(self):
+        deploy_periods = [[] for l in range(self.l_size)]
+        for l in range(self.l_size):
+            for k in range(self.iterations_k):
+                deploy_lk = self.columns[(l,k)].production_schedules.keys()
+                for deploy_period in deploy_lk:
+                    deploy_periods[l].append(deploy_period)
+
+        deploy_periods_filtered = [set(deploy_periods[l]) for l in range(self.l_size)]
+        print("Deploy periods filtered",deploy_periods_filtered)
+
+
         self.model.addConstrs((
             gp.quicksum(
                     self.lambda_var[l,k] * self.columns[(l, k)].production_schedules[t_hat].w[f][t][s] if t_hat in self.columns[(l,k)].production_schedules.keys() else 0.0
@@ -178,65 +189,133 @@ class CGMasterProblem:
             for s in range(self.s_size)
         ), name="X-tracking")
 
+
+        self.model.addConstrs((
+            gp.quicksum(
+                self.lambda_var[l, k] *
+                gp.quicksum(
+                    self.columns[(l, k)].production_schedules[t_hat].y[f][t] if t_hat in self.columns[
+                        (l, k)].production_schedules.keys() else 0.0
+                for t_hat in deploy_periods_filtered[l]
+                )
+                for k in range(self.iterations_k)
+            ) == self.y[l, f, t]
+            for f in range(self.f_size)
+            for t in range(self.t_size)
+            for l in range(self.l_size)
+        ), name=f"Y-tracking_site{l}")
+
+        """
         added_y_tracking_indices = [] #Just introduced a fuckload of tech-debt
         for t_hat in range(self.t_size):
             for l in range(self.l_size):
                 for k_hat in range(self.iterations_k):
                     if t_hat in self.columns[(l, k_hat)].production_schedules.keys():
-                        added_y_tracking_indices.append((l,k_hat,t_hat))
                         if (l,k_hat,t_hat) not in added_y_tracking_indices:
                             self.model.addConstrs((
                                 gp.quicksum(
-                                    self.lambda_var[l, k] * self.columns[(l, k)].production_schedules[t_hat].y[f][t]
+                                    self.lambda_var[l, k] * (self.columns[(l, k)].production_schedules[t_hat].y[f][t] if t_hat in self.columns[(l, k)].production_schedules.keys() else 0.0)
                                     for k in range(self.iterations_k)
                                 ) == self.y[l, f, t]
                                 for f in range(self.f_size)
                                 for t in range(t_hat, self.t_size)
-                            ), name="Y-tracking")
+                            ), name=f"Y-tracking_site{l}")
+                        added_y_tracking_indices.append((l, k_hat, t_hat))
 
+        
+        """
+
+        """
         added_deploy_bin_tracking_indices = []
         for t_hat in range(self.t_size):
             for l in range(self.l_size):
                 for k_hat in range(self.iterations_k):
-                    added_deploy_bin_tracking_indices.append((l, k_hat, t_hat))
-                    if (l, k_hat, t_hat) not in added_deploy_bin_tracking_indices:
-                        self.model.addConstrs((
-                            gp.quicksum(
-                                self.lambda_var[l, k] * self.columns[(l, k)].production_schedules[t_hat].deploy_bin[t]
-                                for k in range(self.iterations_k)
-                            ) == self.deploy_bin[l, t]
-                            for t in range(t_hat, self.t_size)
-                        ), name="Deploy_bin-tracking")
+                    if t_hat in self.columns[(l, k_hat)].production_schedules.keys():
+                        if (l, k_hat, t_hat) not in added_deploy_bin_tracking_indices:
+                            self.model.addConstrs((
+                                gp.quicksum(
+                                    self.lambda_var[l, k] * self.columns[(l, k)].production_schedules[t_hat].deploy_bin[t] if t_hat in self.columns[(l, k)].production_schedules.keys() else 0.0
+                                    for k in range(self.iterations_k)
+                                ) == self.deploy_bin[l, t]
+                                for t in range(t_hat, self.t_size)
+                            ), name="Deploy_bin-tracking")
+                        added_deploy_bin_tracking_indices.append((l, k_hat, t_hat))
 
         added_deploy_type_bin_tracking_indices = []
         for t_hat in range(self.t_size):
             for l in range(self.l_size):
                 for k_hat in range(self.iterations_k):
-                    added_deploy_type_bin_tracking_indices.append((l, k_hat, t_hat))
-                    if (l, k_hat, t_hat) not in added_deploy_type_bin_tracking_indices:
-                        self.model.addConstrs((
-                            gp.quicksum(
-                                self.lambda_var[l, k] * self.columns[(l, k)].production_schedules[t_hat].deploy_type_bin[f][t]
-                                for k in range(self.iterations_k)
-                            ) == self.deploy_type_bin[l, f, t]
-                            for f in range(self.f_size)
-                            for t in range(t_hat, self.t_size)
-                        ), name="deploy_type_bin-tracking")
+                    if t_hat in self.columns[(l, k_hat)].production_schedules.keys():
+                        if (l, k_hat, t_hat) not in added_deploy_type_bin_tracking_indices:
+                            self.model.addConstrs((
+                                gp.quicksum(
+                                    self.lambda_var[l, k] * self.columns[(l, k)].production_schedules[t_hat].deploy_type_bin[f][t] if t_hat in self.columns[(l, k)].production_schedules.keys() else 0.0
+                                    for k in range(self.iterations_k)
+                                ) == self.deploy_type_bin[l, f, t]
+                                for f in range(self.f_size)
+                                for t in range(t_hat, self.t_size)
+                            ), name="deploy_type_bin-tracking")
+                        added_deploy_type_bin_tracking_indices.append((l, k_hat, t_hat))
 
         added_employ_bin_tracking_indices = []
         for t_hat in range(self.t_size):
             for l in range(self.l_size):
                 for k_hat in range(self.iterations_k):
-                    added_employ_bin_tracking_indices.append((l, k_hat, t_hat))
-                    if (l, k_hat, t_hat) not in added_employ_bin_tracking_indices:
-                        self.model.addConstrs((
-                            gp.quicksum(
-                                self.lambda_var[l, k] * self.columns[(l, k)].production_schedules[t_hat].employ_bin[t][s]
-                                for k in range(self.iterations_k)
-                            ) == self.employ_bin[l, t, s]
-                            for t in range(t_hat, self.t_size)
-                            for s in range(self.s_size)
-                        ), name="employ_bin-tracking")
+                    if t_hat in self.columns[(l, k_hat)].production_schedules.keys():
+                        if (l, k_hat, t_hat) not in added_employ_bin_tracking_indices:
+                            self.model.addConstrs((
+                                gp.quicksum(
+                                    self.lambda_var[l, k] * self.columns[(l, k)].production_schedules[t_hat].employ_bin[t][s] if t_hat in self.columns[(l, k)].production_schedules.keys() else 0.0
+                                    for k in range(self.iterations_k)
+                                ) == self.employ_bin[l, t, s]
+                                for t in range(t_hat, self.t_size)
+                                for s in range(self.s_size)
+                            ), name="employ_bin-tracking")
+                        added_employ_bin_tracking_indices.append((l, k_hat, t_hat))
+        """
+
+        self.model.addConstrs((
+            gp.quicksum(
+                self.lambda_var[l, k] * self.columns[(l, k)].production_schedules[t].deploy_bin[t] if t in self.columns[(l,k)].production_schedules.keys() else 0.0
+                for k in range(self.iterations_k)
+            ) == self.deploy_bin[l, t]
+            for t in range(self.t_size)
+            for l in range(self.l_size)
+        ), name=f"deploy_bin_tracking")
+
+        self.model.addConstrs((
+            gp.quicksum(
+                self.lambda_var[l, k] *
+                self.columns[(l, k)].production_schedules[t].deploy_type_bin[f][t] if t in self.columns[(l, k)].production_schedules.keys() else 0.0
+                for k in range(self.iterations_k)
+            ) == self.deploy_type_bin[l,f,t]
+            for f in range(self.f_size)
+            for t in range(self.t_size)
+            for l in range(self.l_size)
+        ), name=f"deploy_type_bin_tracking")
+
+
+        employ_bins_lkts = [[[[0 for s in range(self.s_size)]for t in range(self.t_size)]for k in range(self.iterations_k)] for l in range(self.l_size)]
+        for l in range(self.l_size):
+            for k in range(self.iterations_k):
+                for s in range(self.s_size):
+                    for t_hat in deploy_periods_filtered[l]:
+                        for t in range(t_hat, self.t_size):
+                            employ_bins_lkts[l][k][t][s] += (self.columns[(l, k)].production_schedules[t_hat].employ_bin[t][s] if t_hat in self.columns[(l, k)].production_schedules.keys() else 0.0)
+                            if employ_bins_lkts[l][k][t][s] != 0:
+                                employ_bins_lkts[l][k][t][s] = 1
+
+        self.model.addConstrs((
+            gp.quicksum(
+                self.lambda_var[l, k] *
+                employ_bins_lkts[l][k][t][s]
+                for k in range(self.iterations_k)
+            ) == self.employ_bin[l, t, s]
+            for l in range(self.l_size)
+            for t in range(t_hat, self.t_size)
+            for s in range(self.f_size)
+        ), name=f"employ_bin_tracking")
+
 
         self.model.addConstrs((
             gp.quicksum(
@@ -250,21 +329,49 @@ class CGMasterProblem:
 
         ), name="employ_bin_granular-tracking")
 
-        added_harvest_bin_tracking_indices = []
+        harvest_bins_lkts = [[[[0 for s in range(self.s_size)] for t in range(self.t_size)] for k in range(self.iterations_k)] for l in range(self.l_size)]
+        for l in range(self.l_size):
+            for k in range(self.iterations_k):
+                for s in range(self.s_size):
+                    for t_hat in deploy_periods_filtered[l]:
+                        for t in range(t_hat, self.t_size):
+                            harvest_bins_lkts[l][k][t][s] += (
+                                self.columns[(l, k)].production_schedules[t_hat].employ_bin[t][s] if t_hat in self.columns[(l, k)].production_schedules.keys() else 0.0)
+                            if harvest_bins_lkts[l][k][t][s] != 0:
+                                harvest_bins_lkts[l][k][t][s] = 1
+
+        self.model.addConstrs((
+            gp.quicksum(
+                self.lambda_var[l, k] *
+                harvest_bins_lkts[l][k][t][s]
+                for k in range(self.iterations_k)
+            ) == self.harvest_bin[l, t, s]
+            for l in range(self.l_size)
+            for t_hat in deploy_periods_filtered[l]
+            for t in range(t_hat,self.t_size)
+            for s in range(self.f_size)
+        ), name=f"harvest_bin_tracking")
+
+        """
+                added_harvest_bin_tracking_indices = []
         for t_hat in range(self.t_size):
             for l in range(self.l_size):
                 for k_hat in range(self.iterations_k):
-                    added_harvest_bin_tracking_indices.append((l, k_hat, t_hat))
-                    if (l, k_hat, t_hat) not in added_harvest_bin_tracking_indices:
-                        self.model.addConstrs((
-                            gp.quicksum(
-                                self.lambda_var[l, k] * self.columns[(l, k)].production_schedules[t_hat].harvest_bin[t][s]
-                                for k in range(self.iterations_k)
-                            ) == self.harvest_bin[l, t, s]
-                            for t in range(t_hat, self.t_size)
-                            for s in range(self.s_size)
+                    if t_hat in self.columns[(l, k_hat)].production_schedules.keys():
+                        if (l, k_hat, t_hat) not in added_harvest_bin_tracking_indices:
+                            self.model.addConstrs((
+                                gp.quicksum(
+                                    self.lambda_var[l, k] * self.columns[(l, k)].production_schedules[t_hat].harvest_bin[t][s] if t_hat in self.columns[(l, k)].production_schedules.keys() else 0.0
+                                    for k in range(self.iterations_k)
+                                ) == self.harvest_bin[l, t, s]
+                                for t in range(t_hat, self.t_size)
+                                for s in range(self.s_size)
 
-                        ), name="Harvest_bin-tracking")
+                            ), name="Harvest_bin-tracking")
+                        added_harvest_bin_tracking_indices.append((l, k_hat, t_hat))
+        
+        """
+
 
     def get_dual_variables(self):
         dual_variables = CGDualVariablesFromMaster(iteration=self.iterations_k)

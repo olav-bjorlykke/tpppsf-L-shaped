@@ -38,7 +38,6 @@ def create_zero_column():
 
     for column in initial_columns:
         column.write_to_file()
-
 def column_generation():
     master = CGMasterProblem()
     initial = Model(sites.SITE_LIST)
@@ -92,26 +91,24 @@ def column_generation():
         if sum == 0.0 and j >= 4:
             optimal = True
         j += 1
-
 def main1():
-    master = CGMasterProblem()
+    b_and_p = BranchAndPrice()
     initial = Model(sites.SITE_LIST)
     initial_columns = initial.create_initial_columns(0)
     initial_columns2 = initial.create_zero_column(1)
 
 
     for column in initial_columns:
-        master.columns[(column.site, column.iteration_k)] = column
+        b_and_p.master.columns[(column.site, column.iteration_k)] = column
         #column.write_to_file()
 
     for column in initial_columns2:
-        master.columns[(column.site, column.iteration_k)] = column
+        b_and_p.master.columns[(column.site, column.iteration_k)] = column
         #column.write_to_file()
 
-    master.initialize_model()
-    b_and_p = BranchAndPrice()
+    b_and_p.master.initialize_model()
     node = NodeLabel(number=0, parent=0, level=0)
-    b_and_p.column_generation(master=master, node_label=node)
+    b_and_p.column_generation(node_label=node)
 
 if __name__ == '__main__':
     main1()

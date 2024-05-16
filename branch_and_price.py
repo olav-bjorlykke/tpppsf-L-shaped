@@ -76,6 +76,7 @@ class BranchAndPrice:
             print(node_label)
             self.master.update_model(node_label) 
             self.master.solve()                  # I think maybe this becomes infeasible when introducing the branching constraints and solving before generating more columns - any waht to get around this?
+
             if self.master.model.status == GRB.INFEASIBLE:
                 return False                     # To prevent errors, handled by pruning in B&P
             dual_variables = self.master.get_dual_variables()
