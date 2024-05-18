@@ -2,31 +2,31 @@ from l_shaped_master_problem import LShapedMasterProblem
 from l_shaped_sub_problem import LShapedSubProblem
 import initialization.configs as configs
 import initialization.sites as sites
-from initialization.input_data import InputData
-from gurobipy import GRB
+from data_classes import CGDualVariablesFromMaster, NodeLabel, CGColumn, DeployPeriodVariables
 
+class LShapedAlgorithm:
+    def __init__(self, site, site_index, node_label) -> None:
+        self.master = LShapedMasterProblem(site, site_index)
+        self.site = site
+        self.l = site_index
+        self.node_label = node_label
+        self.subproblems = []
 
-class LShapedAlgoritm:
-    def __init__(self) -> None:
-        self.input_data = InputData()
-
-
-    def run(self):
-        master_problem = LShapedMasterProblem(self.input_data, sites.short_sites_list[0], 0)   #TODO: Fix how this takes in the site to solve for
-        master_problem.initialize_model()                                                                    #Create the gurobi model object within the master-problem class
+    def solve(self, cg_dual_variables):
+        self.master.initialize_model(self.node_label)                                                                    #Create the gurobi model object within the master-problem class
         #Solve the master problem with no cuts
-        master_problem.solve()
+        self.master.solve()
         iteration_counter = 1
 
         #Write initial objective value to file
-        self.write_obj_value_to_file(master_problem, iteration=iteration_counter)
+        #self.write_obj_value_to_file(self.master, iteration=iteration_counter)
 
         # Sets the old master problem to be none in the first iteration
         old_master_problem_solution = None
         # new master problem solution set to be the solution with no cuts, this is an Lshaped data class object
-        new_master_problem_solution = master_problem.get_variable_values()
+        new_master_problem_solution = self.master.get_variable_values()
         #Initializes a list of L-shaped sub-problems
-        subproblems = [LShapedSubProblem(s, sites.short_sites_list[0], 0, new_master_problem_solution, self.input_data) for s in range(configs.NUM_SCENARIOS)] #TODO:Fix input of sites
+        subproblems = [LShapedSubProblem(s, self.site, self.l, new_master_problem_solution, cg_dual_variables) for s in range(configs.NUM_SCENARIOS)]
         #Initializes an empyt list for dual variable tracking
         dual_variables = [None for _ in range(configs.NUM_SCENARIOS)]
         for s in range(configs.NUM_SCENARIOS):
@@ -40,15 +40,17 @@ class LShapedAlgoritm:
             for s in range(configs.NUM_SCENARIOS):
                 subproblems[s].update_model(new_master_problem_solution)
                 subproblems[s].solve()
+                subproblems[s].model.computeIIS()
+                subproblems[s].model.write("subsub.ilp")
                 #Fetch dual variables from sub-problem, and write to list so they can be passed to the master problem
                 dual_variables[s] = subproblems[s].get_dual_values()
             #Add new optimality cut, based on dual variables
-            master_problem.add_optimality_cuts(dual_variables)
+            self.master.add_optimality_cuts(dual_variables)
             #Solve master problem with new cuts, and store the variable values to be passed to sub-problems in next iteration
-            master_problem.solve()
-            new_master_problem_solution = master_problem.get_variable_values()
+            self.master.solve()
+            new_master_problem_solution = self.master.get_variable_values()
             #Log the objective value
-            self.write_obj_value_to_file(master_problem, iteration=iteration_counter)
+            self.write_obj_value_to_file(self.master, iteration=iteration_counter)
 
 
         #Once the L-shaped terminates, we solve it as a MIP to generate an integer feasible solution
@@ -60,6 +62,8 @@ class LShapedAlgoritm:
         new_master_problem_solution.write_to_file()
         for s in range(configs.NUM_SCENARIOS):
             subproblems[s].print_variable_values()
+        
+        self.subproblems = subproblems
 
 
     def write_obj_value_to_file(self, master_problem, iteration):
@@ -68,8 +72,34 @@ class LShapedAlgoritm:
         f.write(f"MP solution iteration {iteration}: {master_problem.model.getAttr(param_name)}\n")
         f.close()
 
+    def get_column_object(self, iteration):
+        column = CGColumn(self.l, iteration)
+        for t_hat in self.master.get_deploy_period_list():
+            deploy_period_variables = DeployPeriodVariables()
+            for f in range(self.master.f_size):
+                for t in range(self.master.t_size):
+                    deploy_period_variables.y[f][t] = round(self.master.y[f, t].x, 2)
+                    deploy_period_variables.deploy_type_bin[f][t] = round(self.master.deploy_type_bin[f, t].x, 2)
+                    for s, sub in enumerate(self.subproblems):
+                        deploy_period_variables.w[f][t][s] = round(sub.w[f, t_hat, t].x, 2)
+                for t in range(self.master.t_size +1):
+                    for s, sub in enumerate(self.subproblems):
+                        deploy_period_variables.x[f][t][s] = round(sub.x[f,t_hat,t].x, 2)
+            for t in range(self.master.t_size):
+                deploy_period_variables.deploy_bin[t] = round(self.master.deploy_bin[t].x,2)
+                for s, sub in enumerate(self.subproblems):
+                    deploy_period_variables.employ_bin[t][s] = round(sub.employ_bin[t].x,2)
+                    deploy_period_variables.employ_bin_granular[t][s] = round(sub.employ_bin_granular[t_hat, t].x,2)
+                    deploy_period_variables.harvest_bin[t][s] = round(sub.harvest_bin[t].x,2)
+            column.production_schedules[t_hat] = deploy_period_variables
+        return column
+
 
 if __name__ == "__main__":
-    LShapedAlgoritm().run()
+    ls = LShapedAlgorithm(sites.site_1, 0, CGDualVariablesFromMaster(), NodeLabel(3, 2, 1))
+    ls.solve()
+    column = ls.get_column_object(0)
+    column.write_to_file()
+    print(ls.get_column_object(0))
 
 

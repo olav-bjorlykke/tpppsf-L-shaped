@@ -5,7 +5,7 @@ from initialization.sites import Site
 from model import Model
 import gurobipy as gp
 from gurobipy import GRB
-from data_classes import LShapedMasterProblemVariables, LShapedSubProblemDualVariables
+from data_classes import LShapedMasterProblemVariables, LShapedSubProblemDualVariables, CGDualVariablesFromMaster
 import pandas as pd
 
 class LShapedSubProblem(Model):
@@ -13,13 +13,15 @@ class LShapedSubProblem(Model):
                  scenario: int,
                  site: Site,
                  site_index: int,                                 
-                 fixed_variables: LShapedMasterProblemVariables, 
-                 input_data: InputData
+                 fixed_variables: LShapedMasterProblemVariables,
+                 cg_dual_variables: CGDualVariablesFromMaster,
+                 input_data = InputData()
                  ):
         self.site = site
         self.scenario = scenario
         self.location = site_index
         self.fixed_variables = fixed_variables
+        self.cg_dual_variables = cg_dual_variables
         self.input_data = input_data
         self.s_size = configs.NUM_SCENARIOS
         self.f_size = configs.NUM_SMOLT_TYPES
@@ -33,11 +35,10 @@ class LShapedSubProblem(Model):
     """
     def initialize_model(self):
         self.model = gp.Model("LShapedSubProblem")
+        self.model.setParam('OutputFlag', 0)
         self.declare_variables()
-
         #1. Setobjective
-        self.add_objective()
-        
+        self.add_cg_dual_objective()
         #2. Add constraints
         self.add_fallowing_constraints()
         self.add_biomass_development_constraints()
@@ -48,18 +49,22 @@ class LShapedSubProblem(Model):
         self.add_harvest_constraints()
         self.add_employment_bin_forcing_constraints()
         self.add_valid_inequality_sub_problem()
+        self.add_x_forcing_constraint()
+
     def update_model(self, fixed_variables):
         self.fixed_variables = fixed_variables
         self.model.remove(self.model.getConstrs())
         self.add_fallowing_constraints()
         self.add_biomass_development_constraints()
         self.add_w_forcing_constraint()
+        self.add_x_forcing_constraint()
         self.add_MAB_requirement_constraint()
         self.add_UB_constraints()
         self.add_inactivity_constraint()
         self.add_harvest_constraints()
         self.add_employment_bin_forcing_constraints()
         self.add_valid_inequality_sub_problem()
+
     def update_model_to_mip(self, fixed_variables):
         self.model.remove(self.model.getConstrs())
         self.model.remove(self.model.getVars())
@@ -69,12 +74,14 @@ class LShapedSubProblem(Model):
         self.add_fallowing_constraints()
         self.add_biomass_development_constraints()
         self.add_w_forcing_constraint()
+        self.add_x_forcing_constraint()
         self.add_MAB_requirement_constraint()
         self.add_UB_constraints()
         self.add_inactivity_constraint()
         self.add_harvest_constraints()
         self.add_employment_bin_forcing_constraints()
         self.add_valid_inequality_sub_problem()
+        
     def solve(self):
         self.model.optimize()
     def declare_variables(self):
@@ -147,6 +154,27 @@ class LShapedSubProblem(Model):
                         ),
             GRB.MAXIMIZE
         )
+
+    def add_cg_dual_objective(self):
+        penalty_parameter = parameters.penalty_parameter_L_sub #This should not be very high -> It will lead to numeric instability
+        self.model.setObjective(
+            gp.quicksum(
+                gp.quicksum(
+                    self.w[f, t_hat, t] for t in range(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat],
+                                    min(t_hat + parameters.max_periods_deployed, self.t_size))
+                )
+                - gp.quicksum(
+                    self.x[f, t_hat, t] * self.cg_dual_variables.u_MAB[t][self.scenario]
+                    for t in range(t_hat, min(t_hat + parameters.max_periods_deployed, self.t_size + 1))
+                )
+                - self.x[f, t_hat, parameters.number_periods] * self.cg_dual_variables.u_EOH[self.scenario]
+                for f in range(self.f_size)
+                for t_hat in range(self.t_size)
+            )
+            - penalty_parameter * gp.quicksum(self.z_slack_1[t] for t in range(self.t_size))
+            - penalty_parameter * gp.quicksum(self.z_slack_2[t_hat, t] for t_hat in range(self.t_size) for t in range(t_hat, self.t_size)
+            ), GRB.MAXIMIZE
+        )
     """
     Constraints
     """
@@ -206,7 +234,7 @@ class LShapedSubProblem(Model):
             self.growth_factors.loc[(self.smolt_weights[f], f"Scenario {self.scenario}", t_hat)][t] - self.w[f, t_hat, t]
             for t_hat in range(self.t_size)
             for f in range(self.f_size)
-            for t in range(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat],
+            for t in range(min(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat], self.t_size),
                            min(t_hat + parameters.max_periods_deployed, self.t_size))
 
         )
@@ -270,6 +298,21 @@ class LShapedSubProblem(Model):
             for f in range(self.f_size)
             for t_hat in range(self.t_size)
             for t in range(min(t_hat + parameters.max_periods_deployed, self.t_size), self.t_size)
+        )
+    
+    def add_x_forcing_constraint(self):#TODO: check if used or remove
+        self.model.addConstrs(
+            self.x[f, t_hat, t] <= 0
+            for t_hat in range(self.t_size)
+            for t in range(0, t_hat)
+            for f in range(self.f_size)
+        )
+
+        self.model.addConstrs(
+            self.x[f, t_hat, t] <= 0
+            for t_hat in range(self.t_size)
+            for t in range(min(t_hat + parameters.max_periods_deployed, self.t_size + 1), self.t_size + 1)
+            for f in range(self.f_size)
         )
 
     """

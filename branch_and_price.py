@@ -6,6 +6,7 @@ import initialization.configs as configs
 import copy
 from gurobipy import GRB # type: ignore
 import logging
+from l_shaped_algorithm import LShapedAlgorithm
 
 class BranchAndPrice:
     def __init__(self):
@@ -25,7 +26,7 @@ class BranchAndPrice:
         while q:
             print(q)
             current_node = q.pop(0)
-            feasible = self.column_generation(current_node)
+            feasible = self.column_generation_ls(current_node)
             self.master_logger.info(f"Solved node: {current_node.number}")
             if not feasible: #Pruning criteria 1
                 #Prunes the node if the Node is not feasible
@@ -119,11 +120,36 @@ class BranchAndPrice:
             dual_variables = self.master.get_dual_variables()
             #dual_variables.write_to_file()
 
-
-
-
         return True
 
+
+    def column_generation_ls(self, node_label):
+        #Initializing sub problems
+        self.master.model.setParam('OutputFlag', 0)
+
+        previous_dual_variables = CGDualVariablesFromMaster(u_EOH=[1 for _ in range(configs.NUM_SCENARIOS)])
+        dual_variables = CGDualVariablesFromMaster()
+        sub_problems = [LShapedAlgorithm(sites.SITE_LIST[i], i, node_label) for i in range(len(sites.SITE_LIST))]
+        
+        while previous_dual_variables != dual_variables or self.master.iterations_k < 5:
+            previous_dual_variables = dual_variables
+            for i, sub in enumerate(sub_problems):
+                sub.solve(dual_variables)
+                column = sub.get_column_object(iteration=self.master.iterations_k)
+                column.site = i
+                #column.write_to_file()
+                self.master.columns[(i, self.master.iterations_k)] = column
+                self.sub_logger.info(f"iteration {self.master.iterations_k} / site {i}:{sub.master.model.objVal}") #TODO: this does not account for solving the subsubs as MIPs
+            self.master.update_model(node_label) 
+            self.master.solve()                  
+            if self.master.model.status != GRB.OPTIMAL:     # To prevent errors, handled by pruning in B&P
+                self.master_logger.info(f"{self.master.iterations_k}: status: {self.master.model.status}")
+                self.master.iterations_k -= 1
+                return False
+            self.master_logger.info(f"{self.master.iterations_k}: objective = {self.master.model.objVal}")                    
+            dual_variables = self.master.get_dual_variables()
+            #dual_variables.write_to_file()
+        return True
 
     def column_generation_test(self, node_label):
         #Initializing sub problems
