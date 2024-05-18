@@ -105,6 +105,7 @@ class NodeLabel:
     number: int
     parent: int
     level: int
+    integer_feasible:bool = field(default=False)
     LP_solution: float = field(default=0)
     MIP_solution: float = field(default=0)
     up_branching_indices: list[list[int]] = field(default_factory= lambda: [[] for _ in range(configs.NUM_LOCATIONS)]) #site, index

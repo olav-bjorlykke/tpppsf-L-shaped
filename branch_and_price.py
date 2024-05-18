@@ -25,34 +25,41 @@ class BranchAndPrice:
         while q:
             print(q)
             current_node = q.pop(0)
-            feasible = self.column_generation_test(current_node)
+            feasible = self.column_generation(current_node)
+            self.master_logger.info(f"Solved node: {current_node.number}")
             if not feasible: #Pruning criteria 1
                 #Prunes the node if the Node is not feasible
                 solved_nodes.append(current_node)
                 continue
-            solution = self.master.model.getObjective().getValue()
-            if solution < current_best_solution: #Pruning criteria 2
+            lp_solution = self.master.model.getObjective().getValue()
+            integer_feasible = self.master.check_integer_feasible()
+            self.master.model.setParam('OutputFlag', 1)
+            self.master.update_and_solve_as_mip(current_node)
+            mip_solution = self.master.model.getObjective().getValue()
+            if lp_solution < current_best_solution: #Pruning criteria 2
                 #Prunes the node if the LP solution is worse than the current best MIP solution found
-                current_node.LP_solution = solution
+                current_node.LP_solution = lp_solution
+                current_node.MIP_solution = mip_solution
                 solved_nodes.append(current_node)
                 continue
-            integer_feasible = self.master.check_integer_feasible()
             if integer_feasible: #Pruning criteria 3
                 #If the LP solution is integer feasible -> prune!
-                current_best_solution = solution
-                current_node.MIP_solution = solution
+                current_best_solution = lp_solution
+                current_node.MIP_solution = lp_solution
+                current_node.integer_feasible = True
                 solved_nodes.append(current_node)
                 continue
 
             #Setting the variables in the NodeLabel object
-            current_node.LP_solution = solution
+            current_node.LP_solution = lp_solution
+            current_node.MIP_solution = mip_solution
             #Appending the node to solved nodes
             solved_nodes.append(current_node)
             self.general_logger.info(solved_nodes)
             #Deciding which variable to branch on
             branching_variable = self.master.get_branching_variable(branched_indexes)              # Returns a list with [location, index] for the branching variable
             branched_indexes.append(branching_variable)
-            self.bp_logger.info(f"Node: {current_node.number} / iteration {self.master.iterations_k} / branching on variable: {branching_variable}")
+            self.bp_logger.info(f"Node: {current_node.number} / iteration {self.master.iterations_k} / branching on variable: {branching_variable} / parent: {current_node.parent} / lp_solution:{current_node.LP_solution} / mip_solution:{current_node.MIP_solution}")
             #Book keeping to store the branching index
             new_up_branching_indicies = copy.deepcopy(current_node.up_branching_indices)
             new_down_branching_indicies = copy.deepcopy(current_node.down_branching_indices)
@@ -60,8 +67,8 @@ class BranchAndPrice:
             new_up_branching_indicies[branching_variable[0]].append(branching_variable[1])
             new_down_branching_indicies[branching_variable[0]].append(branching_variable[1])
             #Logging
-            self.general_logger.info("BRANCH INDICE UP",new_up_branching_indicies)
-            self.general_logger.info("BRANCH INDICE DOWN",new_down_branching_indicies)
+            self.general_logger.info(f"BRANCH INDICE UP {new_up_branching_indicies}")
+            self.general_logger.info(f"BRANCH INDICE DOWN {new_down_branching_indicies}")
             #Creating child nodes
             node_number += 1
             new_node_up = NodeLabel(number=node_number, 
@@ -82,7 +89,6 @@ class BranchAndPrice:
             
             # optimality_gap = Current Best / Generation lowest LP
 
-
     def column_generation(self, node_label):
         #Initializing sub problems
         sub_problems = [Model(sites.SITE_LIST[i], self.master.iterations_k) for i in range(len(sites.SITE_LIST))]
@@ -100,7 +106,7 @@ class BranchAndPrice:
 
                 column = sub.get_column_object(iteration=self.master.iterations_k)
                 column.site = i
-                column.write_to_file()
+                #column.write_to_file()
                 self.master.columns[(i, self.master.iterations_k)] = column
                 self.sub_logger.info(f"iteration {self.master.iterations_k} / site {i}:{sub.model.objVal}")
             self.master.update_model(node_label) 
@@ -111,7 +117,10 @@ class BranchAndPrice:
                 return False
             self.master_logger.info(f"{self.master.iterations_k}: objective = {self.master.model.objVal}")                    
             dual_variables = self.master.get_dual_variables()
-            dual_variables.write_to_file()
+            #dual_variables.write_to_file()
+
+
+
 
         return True
 
@@ -130,7 +139,7 @@ class BranchAndPrice:
 
                 column = sub.get_column_object(iteration=self.master.iterations_k)
                 column.site = i
-                column.write_to_file()
+                #column.write_to_file()
                 self.master.columns[(i, self.master.iterations_k)] = column
                 self.sub_logger.info(f"iteration {self.master.iterations_k} / site {i}:{sub.model.objVal}")
             self.master.update_model(node_label) 
@@ -141,11 +150,9 @@ class BranchAndPrice:
                 return False
             self.master_logger.info(f"{self.master.iterations_k}:objective = {self.master.model.objVal}")                    
             dual_variables = self.master.get_dual_variables()
-            dual_variables.write_to_file()
+            #dual_variables.write_to_file()
 
         return True
-
-
 
     def generate_initial_columns(self):
         initial = Model(sites.SITE_LIST)
@@ -164,28 +171,29 @@ class BranchAndPrice:
         self.master.iterations_k += 1
 
     def set_up_logging(self):
+        path = "output/logs/"
         logging.basicConfig(
             level=logging.INFO,
             filemode='a'  # Set filemode to 'w' for writing (use 'a' to append)
         )
-        self.general_logger = logging.getLogger("general_logger")
+        self.general_logger = logging.getLogger(f"general_logger")
 
         #Creating logger for logging master problem values
         self.master_logger = logging.getLogger("master_logger")
-        file_handler1 = logging.FileHandler('master_logger.log')
+        file_handler1 = logging.FileHandler(f'{path}master_logger.log')
         file_handler1.setLevel(logging.INFO)
         self.master_logger.addHandler(file_handler1)
 
 
         #Creating logger for logging sub-problem values
         self.sub_logger = logging.getLogger("sub_logger")
-        file_handler2 = logging.FileHandler('sub_logger.log')
+        file_handler2 = logging.FileHandler(f'{path}sub_logger.log')
         file_handler2.setLevel(logging.INFO)
         self.sub_logger.addHandler(file_handler2)
 
         #Creating logger for Branch and Price:
         self.bp_logger = logging.getLogger("bp_logger")
-        file_handler3 = logging.FileHandler('bp_logger.log')
+        file_handler3 = logging.FileHandler(f'{path}bp_logger.log')
         file_handler3.setLevel(logging.INFO)
         self.bp_logger.addHandler(file_handler3)
 

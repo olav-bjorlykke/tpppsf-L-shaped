@@ -26,7 +26,6 @@ class CGMasterProblem:
         self.add_EOH_constraint()
         self.add_variable_tracking_constraints()
 
-
     def update_model(self, node_label):
         self.iterations_k += 1
         self.model.remove(self.model.getConstrs())
@@ -38,7 +37,6 @@ class CGMasterProblem:
         self.add_EOH_constraint()
         self.add_variable_tracking_constraints()
         self.add_branching_constraints(node_label)
-
 
     def declare_variables(self):
         self.lambda_var = self.model.addVars(configs.NUM_LOCATIONS, self.iterations_k, vtype=GRB.CONTINUOUS, lb=0, name="lambda_var")
@@ -54,7 +52,41 @@ class CGMasterProblem:
         self.employ_bin_granular = self.model.addVars(self.l_size, self.t_size, self.t_size, self.s_size, vtype=GRB.CONTINUOUS, lb=0, ub=1,name="employ_bin_gran")
         self.harvest_bin = self.model.addVars(self.l_size, self.t_size, self.s_size, vtype=GRB.CONTINUOUS, lb=0, ub=1,name="harvest_bin")
 
+    def declare_mip_variables(self):
+        self.lambda_var = self.model.addVars(configs.NUM_LOCATIONS, self.iterations_k, vtype=GRB.BINARY, lb=0,
+                                             name="lambda_var")
+
+        # Declaring the tracking variables
+        self.y = self.model.addVars(self.l_size, self.f_size, self.t_size, vtype=GRB.CONTINUOUS, lb=0, name="Y")
+        self.x = self.model.addVars(self.l_size, self.f_size, self.t_size, self.t_size + 1, self.s_size,
+                                    vtype=GRB.CONTINUOUS, lb=0, name="X")
+        self.w = self.model.addVars(self.l_size, self.f_size, self.t_size, self.t_size, self.s_size,
+                                    vtype=GRB.CONTINUOUS, lb=0, name="W")
+
+        self.deploy_bin = self.model.addVars(self.l_size, self.t_size, vtype=GRB.CONTINUOUS, lb=0, ub=1,
+                                             name="deploy_bin")
+        self.deploy_type_bin = self.model.addVars(self.l_size, self.f_size, self.t_size, vtype=GRB.CONTINUOUS, lb=0,
+                                                  ub=1, name="deploy_type")
+        self.employ_bin = self.model.addVars(self.l_size, self.t_size, self.s_size, vtype=GRB.CONTINUOUS, lb=0, ub=1,
+                                             name="employ_bin")
+        self.employ_bin_granular = self.model.addVars(self.l_size, self.t_size, self.t_size, self.s_size,
+                                                      vtype=GRB.CONTINUOUS, lb=0, ub=1, name="employ_bin_gran")
+        self.harvest_bin = self.model.addVars(self.l_size, self.t_size, self.s_size, vtype=GRB.CONTINUOUS, lb=0, ub=1,
+                                              name="harvest_bin")
+
     def solve(self):
+        self.model.optimize()
+
+    def update_and_solve_as_mip(self, node_label):
+        self.model.remove(self.model.getConstrs())
+        self.model.remove(self.model.getVars())
+        self.declare_mip_variables()
+        self.set_objective()
+        self.add_MAB_company_constraint()
+        self.add_convexity_constraint()
+        self.add_EOH_constraint()
+        self.add_variable_tracking_constraints()
+        self.add_branching_constraints(node_label)
         self.model.optimize()
 
     """
