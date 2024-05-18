@@ -14,6 +14,7 @@ class BranchAndPrice:
 
     def branch_and_price(self):
         self.generate_initial_columns()
+        #Initializing branch and price
         current_best_solution = 0
         root = NodeLabel(number=0, parent=0, level=0)
         q = [root]
@@ -26,43 +27,56 @@ class BranchAndPrice:
             current_node = q.pop(0)
             feasible = self.column_generation_test(current_node)
             if not feasible: #Pruning criteria 1
+                #Prunes the node if the Node is not feasible
                 solved_nodes.append(current_node)
                 continue
             solution = self.master.model.getObjective().getValue()
             if solution < current_best_solution: #Pruning criteria 2
-               current_node.LP_solution = solution
-               solved_nodes.append(current_node)
-               continue
+                #Prunes the node if the LP solution is worse than the current best MIP solution found
+                current_node.LP_solution = solution
+                solved_nodes.append(current_node)
+                continue
             integer_feasible = self.master.check_integer_feasible()
             if integer_feasible: #Pruning criteria 3
+                #If the LP solution is integer feasible -> prune!
                 current_best_solution = solution
                 current_node.MIP_solution = solution
                 solved_nodes.append(current_node)
                 continue
+
+            #Setting the variables in the NodeLabel object
             current_node.LP_solution = solution
+            #Appending the node to solved nodes
             solved_nodes.append(current_node)
-            print(solved_nodes)
+            self.general_logger.info(solved_nodes)
+            #Deciding which variable to branch on
             branching_variable = self.master.get_branching_variable(branched_indexes)              # Returns a list with [location, index] for the branching variable
             branched_indexes.append(branching_variable)
             self.bp_logger.info(f"Node: {current_node.number} / iteration {self.master.iterations_k} / branching on variable: {branching_variable}")
-            node_number += 1
+            #Book keeping to store the branching index
             new_up_branching_indicies = copy.deepcopy(current_node.up_branching_indices)
             new_down_branching_indicies = copy.deepcopy(current_node.down_branching_indices)
+            #Branching variable is a list with two elements - we append the second element to the correct location by indexing on the first element
             new_up_branching_indicies[branching_variable[0]].append(branching_variable[1])
             new_down_branching_indicies[branching_variable[0]].append(branching_variable[1])
-            print("BRANCH INDICE UP",new_up_branching_indicies)
-            print("BRANCH INDICE DOWN",new_down_branching_indicies)
+            #Logging
+            self.general_logger.info("BRANCH INDICE UP",new_up_branching_indicies)
+            self.general_logger.info("BRANCH INDICE DOWN",new_down_branching_indicies)
+            #Creating child nodes
+            node_number += 1
             new_node_up = NodeLabel(number=node_number, 
                                     parent=current_node.number, 
                                     level=current_node.level+1, 
                                     up_branching_indices=new_up_branching_indicies, 
                                     down_branching_indices=current_node.down_branching_indices)
+            #Add one extra to the node_number to ensure they have different numbers
             node_number += 1
             new_node_down = NodeLabel(number=node_number, 
                                       parent=current_node.number, 
                                       level=current_node.level+1, 
                                       up_branching_indices=current_node.up_branching_indices, 
                                       down_branching_indices=new_down_branching_indicies)
+            #Append new nodes to the search queue
             q.append(new_node_up)
             q.append(new_node_down)
             
