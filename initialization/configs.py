@@ -38,7 +38,7 @@ else:
 
 
 MAB_COMPANY_LIMIT = 4000 * 1000
-NUM_LOCATIONS = 1
+NUM_LOCATIONS = 2
 
 if INSTANCE == "LARGE":
     NUM_LOCATIONS = 16
@@ -50,7 +50,7 @@ elif INSTANCE == "SMALL":
     NUM_LOCATIONS = 3
     MAB_COMPANY_LIMIT = 4000 * 1000
 else:
-    NUM_LOCATIONS = 1
+    NUM_LOCATIONS = 2
     MAB_COMPANY_LIMIT = 4000 * 1000
     print("Instance not defined")
 

@@ -40,7 +40,7 @@ class CGDualVariablesFromMaster:
         pd.Series(self.u_EOH).to_excel(writer, index=False, sheet_name="u_EOH")
         writer.close()
     
-    def __eq__(self, other): #TODO: look into changing this to accept a difference of 0.00001 or something
+    def __eq__(self, other): 
         for i in range(parameters.number_periods + 1):
             for j in range(configs.NUM_SCENARIOS):
                 if self.u_MAB[i][j] != other.u_MAB[i][j]:

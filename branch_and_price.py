@@ -36,9 +36,14 @@ class BranchAndPrice:
                 continue
             lp_solution = self.master.model.getObjective().getValue()
             integer_feasible = self.master.check_integer_feasible()
+            branching_variable = self.master.get_branching_variable(current_node)
             self.master.model.setParam('OutputFlag', 1)
             self.master.update_and_solve_as_mip(current_node)
-            mip_solution = self.master.model.getObjective().getValue()
+            if self.master.model.status != GRB.OPTIMAL:
+                self.master.model.computeIIS()
+                self.master.model.write("master_mip_model.ilp")
+            else:
+                mip_solution = self.master.model.getObjective().getValue()
             if lp_solution < current_best_solution: #Pruning criteria 2
                 #Prunes the node if the LP solution is worse than the current best MIP solution found
                 current_node.LP_solution = lp_solution
@@ -56,11 +61,13 @@ class BranchAndPrice:
             #Setting the variables in the NodeLabel object
             current_node.LP_solution = lp_solution
             current_node.MIP_solution = mip_solution
+            mip_solution = 0
+            lp_solution = 0
             #Appending the node to solved nodes
             solved_nodes.append(current_node)
             self.general_logger.info(solved_nodes)
             #Deciding which variable to branch on
-            branching_variable = self.master.get_branching_variable(branched_indexes)              # Returns a list with [location, index] for the branching variable
+                        # Returns a list with [location, index] for the branching variable
             branched_indexes.append(branching_variable)
             self.bp_logger.info(f"Node: {current_node.number} / iteration {self.master.iterations_k} / branching on variable: {branching_variable} / parent: {current_node.parent} / lp_solution:{current_node.LP_solution} / mip_solution:{current_node.MIP_solution}")
             #Book keeping to store the branching index
@@ -110,18 +117,19 @@ class BranchAndPrice:
 
                 column = sub.get_column_object(iteration=self.master.iterations_k)
                 column.site = i
-                #column.write_to_file()
+                column.write_to_file()
                 self.master.columns[(i, self.master.iterations_k)] = column
                 self.sub_logger.info(f"iteration {self.master.iterations_k} / site {i}:{sub.model.objVal}")
             self.master.update_model(node_label) 
-            self.master.solve()                  
+            self.master.solve()
+            #self.master.model.write(f"master_model_iteration_{self.master.iterations_k}.lp")                  
             if self.master.model.status != GRB.OPTIMAL:     # To prevent errors, handled by pruning in B&P
                 self.master_logger.info(f"{self.master.iterations_k}: INFEASIBLE!")
                 self.master.iterations_k -= 1
                 return False
             self.master_logger.info(f"{self.master.iterations_k}: objective = {self.master.model.objVal}")                    
             dual_variables = self.master.get_dual_variables()
-            #dual_variables.write_to_file()
+            dual_variables.write_to_file()
 
         return True
 

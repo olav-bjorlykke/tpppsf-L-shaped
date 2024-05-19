@@ -19,6 +19,10 @@ class LShapedAlgorithm:
         self.master.solve()
         iteration_counter = 1
 
+        if self.master.model.status != GRB.OPTIMAL:
+            self.master.model.computeIIS()
+            self.master.model.write("L-shaped-master-problem.ilp")
+
         #Write initial objective value to file
         #self.write_obj_value_to_file(self.master, iteration=iteration_counter)
 

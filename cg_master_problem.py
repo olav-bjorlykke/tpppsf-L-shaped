@@ -2,7 +2,7 @@ import gurobipy as gp # type: ignore
 from gurobipy import GRB # type: ignore
 import initialization.parameters as parameters
 import initialization.configs as configs
-from data_classes import CGDualVariablesFromMaster
+from data_classes import CGDualVariablesFromMaster, NodeLabel
 
 
 class CGMasterProblem:
@@ -414,13 +414,13 @@ class CGMasterProblem:
 
         return dual_variables
 
-    def get_branching_variable(self, branched_indexes):
+    def get_branching_variable(self, node_label: NodeLabel):
         closest_to_1_location_and_index = [0, 0]
         value_closest_to_1 = 0
         for l in range(self.l_size):
             for t in range(self.t_size):
-                if (self.deploy_bin[l, t].X > value_closest_to_1) and ([l, t] not in branched_indexes):
-                    value_closest_to_1 = self.deploy_bin[l,t].X
+                if (self.deploy_bin[l, t].X > value_closest_to_1) and ((t not in node_label.up_branching_indices[l]) and (t not in node_label.down_branching_indices[l])):
+                    value_closest_to_1 = self.deploy_bin[l, t].X
                     closest_to_1_location_and_index = [l, t]
         return closest_to_1_location_and_index
 
