@@ -69,7 +69,7 @@ class BranchAndPrice:
             #Deciding which variable to branch on
                         # Returns a list with [location, index] for the branching variable
             branched_indexes.append(branching_variable)
-            self.bp_logger.info(f"Node: {current_node.number} / iteration {self.master.iterations_k} / branching on variable: {branching_variable} / parent: {current_node.parent} / lp_solution:{current_node.LP_solution} / mip_solution:{current_node.MIP_solution}")
+            self.bp_logger.info(f"Node: {current_node.number} / iteration {self.master.iterations_k} / up_branching: {current_node.up_branching_indices} / down_branching: {current_node.down_branching_indices} / parent: {current_node.parent} / lp_solution:{current_node.LP_solution} / mip_solution:{current_node.MIP_solution}")
             #Book keeping to store the branching index
             new_up_branching_indicies = copy.deepcopy(current_node.up_branching_indices)
             new_down_branching_indicies = copy.deepcopy(current_node.down_branching_indices)
@@ -209,7 +209,7 @@ class BranchAndPrice:
         self.master.iterations_k += 1
 
     def set_up_logging(self):
-        path = "output/logs/"
+        path = configs.LOG_DIR
         logging.basicConfig(
             level=logging.INFO,
             filemode='a'  # Set filemode to 'w' for writing (use 'a' to append)

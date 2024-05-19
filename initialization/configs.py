@@ -13,6 +13,7 @@ INSTANCES = ["SMALL", "MEDIUM", "LARGE", "TEST"]
 INSTANCE = INSTANCES[set_instance()]
 NUM_SCENARIOS = set_scenarios()
 OUTPUT_DIR = f"./output/instance_{INSTANCE}_scenario_{NUM_SCENARIOS}/"
+LOG_DIR = f"{OUTPUT_DIR}logs/"
 NUM_SMOLT_TYPES = 1
 
 
@@ -58,6 +59,7 @@ else:
 if not os.path.exists(OUTPUT_DIR):
     # Create the directory
     os.makedirs(OUTPUT_DIR)
+    os.makedirs(LOG_DIR)
     print(f"Directory created: {OUTPUT_DIR}")
 else:
     print(f"Directory already exists: {OUTPUT_DIR}")
