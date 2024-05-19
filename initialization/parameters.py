@@ -29,7 +29,7 @@ bigM = 100000000
 weight_req_for_harvest = 3000.0
 scenario_probabilities = [0.1, 0.8, 0.1]
 MAB_util_end = 0.3
-penalty_parameter_L_sub = 1000 #This should not be very hidh -> It will lead to numeric instability
+penalty_parameter_L_sub = 10000 #This should not be very hidh -> It will lead to numeric instability
 valid_ineqaulity_lshaped_master_bigM = 60 #This must be higher than the max possible release periods -> Never more than 60
 EOH_ratio_requirement = 0.8
 

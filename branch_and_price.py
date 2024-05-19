@@ -22,11 +22,13 @@ class BranchAndPrice:
         solved_nodes = []
         node_number = 0
         branched_indexes = sites.NODE_INIT_LIST
+        for indexes in branched_indexes:
+            root.up_branching_indices[indexes[0]].append(indexes[1])
 
         while q:
             print(q)
             current_node = q.pop(0)
-            feasible = self.column_generation_ls(current_node)
+            feasible = self.column_generation(current_node)
             self.master_logger.info(f"Solved node: {current_node.number}")
             if not feasible: #Pruning criteria 1
                 #Prunes the node if the Node is not feasible
@@ -70,6 +72,7 @@ class BranchAndPrice:
             #Logging
             self.general_logger.info(f"BRANCH INDICE UP {new_up_branching_indicies}")
             self.general_logger.info(f"BRANCH INDICE DOWN {new_down_branching_indicies}")
+            self.general_logger.info(f"Branched indexes:{branched_indexes}")
             #Creating child nodes
             node_number += 1
             new_node_up = NodeLabel(number=node_number, 
@@ -98,7 +101,7 @@ class BranchAndPrice:
 
         previous_dual_variables = CGDualVariablesFromMaster(u_EOH=[1 for _ in range(configs.NUM_SCENARIOS)])
         dual_variables = CGDualVariablesFromMaster()
-        while previous_dual_variables != dual_variables:
+        while previous_dual_variables != dual_variables or self.master.iterations_k < 5:
             previous_dual_variables = dual_variables
             for i, sub in enumerate(sub_problems):
                 sub.solve_as_sub_problem(dual_variables, up_branching_indices=node_label.up_branching_indices[i],
@@ -122,7 +125,6 @@ class BranchAndPrice:
 
         return True
 
-
     def column_generation_ls(self, node_label):
         #Initializing sub problems
         self.master.model.setParam('OutputFlag', 0)
@@ -131,9 +133,10 @@ class BranchAndPrice:
         dual_variables = CGDualVariablesFromMaster()
         sub_problems = [LShapedAlgorithm(sites.SITE_LIST[i], i, node_label) for i in range(len(sites.SITE_LIST))]
         
-        while previous_dual_variables != dual_variables or self.master.iterations_k < 5:
+        while previous_dual_variables != dual_variables or self.master.iterations_k < 10:
             previous_dual_variables = dual_variables
             for i, sub in enumerate(sub_problems):
+                self.general_logger.info(f"## solved subproblem {i}, iteration {self.master.iterations_k} ")
                 sub.solve(dual_variables)
                 column = sub.get_column_object(iteration=self.master.iterations_k)
                 column.site = i
@@ -148,6 +151,7 @@ class BranchAndPrice:
                 return False
             self.master_logger.info(f"{self.master.iterations_k}: objective = {self.master.model.objVal}")                    
             dual_variables = self.master.get_dual_variables()
+            dual_variables.write_to_file()
             #dual_variables.write_to_file()
         return True
 

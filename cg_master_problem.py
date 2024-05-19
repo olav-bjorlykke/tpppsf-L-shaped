@@ -160,8 +160,6 @@ class CGMasterProblem:
         ), name="Convexity"
         )
 
-
-
     """
     Branching constraints
     """
@@ -177,9 +175,6 @@ class CGMasterProblem:
                 self.model.addConstr((
                     self.deploy_bin[location, indicie] == 0
                 ))
-    
-
-            
 
     """
     Variable tracking constraints
@@ -419,7 +414,7 @@ class CGMasterProblem:
 
         return dual_variables
 
-    def get_branching_variable(self, branched_indexes): #TODO: Fix, currently returns [0,0] multiple times in a row
+    def get_branching_variable(self, branched_indexes):
         closest_to_1_location_and_index = [0, 0]
         value_closest_to_1 = 0
         for l in range(self.l_size):
