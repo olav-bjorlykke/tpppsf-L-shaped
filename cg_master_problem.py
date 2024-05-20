@@ -28,6 +28,8 @@ class CGMasterProblem:
 
     def update_model(self, node_label):
         self.iterations_k += 1
+        print(self.iterations_k)
+        print(self.columns.keys())
         self.model.remove(self.model.getConstrs())
         self.model.remove(self.model.getVars())
         self.declare_variables()
@@ -47,10 +49,6 @@ class CGMasterProblem:
         self.w = self.model.addVars(self.l_size, self.f_size, self.t_size, self.t_size, self.s_size, vtype=GRB.CONTINUOUS, lb=0,name="W")
 
         self.deploy_bin = self.model.addVars(self.l_size, self.t_size, vtype=GRB.CONTINUOUS, lb=0, ub=1,name="deploy_bin")
-        self.deploy_type_bin = self.model.addVars(self.l_size, self.f_size, self.t_size, vtype=GRB.CONTINUOUS, lb=0, ub=1,name="deploy_type")
-        self.employ_bin = self.model.addVars(self.l_size, self.t_size, self.s_size, vtype=GRB.CONTINUOUS, lb=0, ub=1,name="employ_bin")
-        self.employ_bin_granular = self.model.addVars(self.l_size, self.t_size, self.t_size, self.s_size, vtype=GRB.CONTINUOUS, lb=0, ub=1,name="employ_bin_gran")
-        self.harvest_bin = self.model.addVars(self.l_size, self.t_size, self.s_size, vtype=GRB.CONTINUOUS, lb=0, ub=1,name="harvest_bin")
 
     def declare_mip_variables(self):
         self.lambda_var = self.model.addVars(configs.NUM_LOCATIONS, self.iterations_k, vtype=GRB.BINARY, lb=0,
@@ -129,7 +127,7 @@ class CGMasterProblem:
                 * self.lambda_var[l, k]
                 for l in range(self.l_size)
                 for k in range(self.iterations_k)
-            ) <= configs.MAB_COMPANY_LIMIT * 1.001 #The 1.001 factor is here to deal with slight numeric instability when exporting variables from the sub-problem
+            ) <= configs.MAB_COMPANY_LIMIT * 1.000001 #The 1.001 factor is here to deal with slight numeric instability when exporting variables from the sub-problem
             for t in range(self.t_size + 1)
             for s in range(self.s_size)
         ), name="MAB"
@@ -146,7 +144,7 @@ class CGMasterProblem:
                 * self.lambda_var[l, k]
                 for l in range(self.l_size)
                 for k in range(self.iterations_k)
-            ) >= configs.MAB_COMPANY_LIMIT * parameters.EOH_ratio_requirement * 0.9999 #The 0.9999 factor is here to deal with slight numeric instability when exporting variables from the sub-problem
+            ) >= configs.MAB_COMPANY_LIMIT * parameters.EOH_ratio_requirement * 0.99999 #The 0.9999 factor is here to deal with slight numeric instability when exporting variables from the sub-problem
             for s in range(self.s_size)
         ), name="EOH"
         )
@@ -180,6 +178,7 @@ class CGMasterProblem:
     Variable tracking constraints
     """
     def add_variable_tracking_constraints(self):
+        """
         deploy_periods = [[] for l in range(self.l_size)]
         for l in range(self.l_size):
             for k in range(self.iterations_k):
@@ -230,74 +229,6 @@ class CGMasterProblem:
             for t in range(self.t_size)
             for l in range(self.l_size)
         ), name=f"Y-tracking_site{l}")
-
-        """
-        added_y_tracking_indices = [] #Just introduced a fuckload of tech-debt
-        for t_hat in range(self.t_size):
-            for l in range(self.l_size):
-                for k_hat in range(self.iterations_k):
-                    if t_hat in self.columns[(l, k_hat)].production_schedules.keys():
-                        if (l,k_hat,t_hat) not in added_y_tracking_indices:
-                            self.model.addConstrs((
-                                gp.quicksum(
-                                    self.lambda_var[l, k] * (self.columns[(l, k)].production_schedules[t_hat].y[f][t] if t_hat in self.columns[(l, k)].production_schedules.keys() else 0.0)
-                                    for k in range(self.iterations_k)
-                                ) == self.y[l, f, t]
-                                for f in range(self.f_size)
-                                for t in range(t_hat, self.t_size)
-                            ), name=f"Y-tracking_site{l}")
-                        added_y_tracking_indices.append((l, k_hat, t_hat))
-
-        
-        """
-
-        """
-        added_deploy_bin_tracking_indices = []
-        for t_hat in range(self.t_size):
-            for l in range(self.l_size):
-                for k_hat in range(self.iterations_k):
-                    if t_hat in self.columns[(l, k_hat)].production_schedules.keys():
-                        if (l, k_hat, t_hat) not in added_deploy_bin_tracking_indices:
-                            self.model.addConstrs((
-                                gp.quicksum(
-                                    self.lambda_var[l, k] * self.columns[(l, k)].production_schedules[t_hat].deploy_bin[t] if t_hat in self.columns[(l, k)].production_schedules.keys() else 0.0
-                                    for k in range(self.iterations_k)
-                                ) == self.deploy_bin[l, t]
-                                for t in range(t_hat, self.t_size)
-                            ), name="Deploy_bin-tracking")
-                        added_deploy_bin_tracking_indices.append((l, k_hat, t_hat))
-
-        added_deploy_type_bin_tracking_indices = []
-        for t_hat in range(self.t_size):
-            for l in range(self.l_size):
-                for k_hat in range(self.iterations_k):
-                    if t_hat in self.columns[(l, k_hat)].production_schedules.keys():
-                        if (l, k_hat, t_hat) not in added_deploy_type_bin_tracking_indices:
-                            self.model.addConstrs((
-                                gp.quicksum(
-                                    self.lambda_var[l, k] * self.columns[(l, k)].production_schedules[t_hat].deploy_type_bin[f][t] if t_hat in self.columns[(l, k)].production_schedules.keys() else 0.0
-                                    for k in range(self.iterations_k)
-                                ) == self.deploy_type_bin[l, f, t]
-                                for f in range(self.f_size)
-                                for t in range(t_hat, self.t_size)
-                            ), name="deploy_type_bin-tracking")
-                        added_deploy_type_bin_tracking_indices.append((l, k_hat, t_hat))
-
-        added_employ_bin_tracking_indices = []
-        for t_hat in range(self.t_size):
-            for l in range(self.l_size):
-                for k_hat in range(self.iterations_k):
-                    if t_hat in self.columns[(l, k_hat)].production_schedules.keys():
-                        if (l, k_hat, t_hat) not in added_employ_bin_tracking_indices:
-                            self.model.addConstrs((
-                                gp.quicksum(
-                                    self.lambda_var[l, k] * self.columns[(l, k)].production_schedules[t_hat].employ_bin[t][s] if t_hat in self.columns[(l, k)].production_schedules.keys() else 0.0
-                                    for k in range(self.iterations_k)
-                                ) == self.employ_bin[l, t, s]
-                                for t in range(t_hat, self.t_size)
-                                for s in range(self.s_size)
-                            ), name="employ_bin-tracking")
-                        added_employ_bin_tracking_indices.append((l, k_hat, t_hat))
         """
 
         self.model.addConstrs((
@@ -309,6 +240,8 @@ class CGMasterProblem:
             for l in range(self.l_size)
         ), name=f"deploy_bin_tracking")
 
+
+        """
         self.model.addConstrs((
             gp.quicksum(
                 self.lambda_var[l, k] *
@@ -377,25 +310,6 @@ class CGMasterProblem:
             for t in range(t_hat,self.t_size)
             for s in range(self.f_size)
         ), name=f"harvest_bin_tracking")
-
-        """
-                added_harvest_bin_tracking_indices = []
-        for t_hat in range(self.t_size):
-            for l in range(self.l_size):
-                for k_hat in range(self.iterations_k):
-                    if t_hat in self.columns[(l, k_hat)].production_schedules.keys():
-                        if (l, k_hat, t_hat) not in added_harvest_bin_tracking_indices:
-                            self.model.addConstrs((
-                                gp.quicksum(
-                                    self.lambda_var[l, k] * self.columns[(l, k)].production_schedules[t_hat].harvest_bin[t][s] if t_hat in self.columns[(l, k)].production_schedules.keys() else 0.0
-                                    for k in range(self.iterations_k)
-                                ) == self.harvest_bin[l, t, s]
-                                for t in range(t_hat, self.t_size)
-                                for s in range(self.s_size)
-
-                            ), name="Harvest_bin-tracking")
-                        added_harvest_bin_tracking_indices.append((l, k_hat, t_hat))
-        
         """
 
 
@@ -411,6 +325,11 @@ class CGMasterProblem:
             constr = self.model.getConstrByName(f"EOH[{s}]")
             dual = constr.getAttr("Pi")
             dual_variables.u_EOH[s] = dual
+
+        for l in range(self.l_size):
+            constr = self.model.getConstrByName(f"Convexity[{l}]")
+            dual = constr.getAttr("Pi")
+            dual_variables.v_l[l] = dual
 
         return dual_variables
 

@@ -142,7 +142,7 @@ class Model:
 
         #Putting solution into variables for export
 
-    def solve_as_sub_problem(self, dual_variables, up_branching_indices=[], down_branching_indices=[], iteration=0):
+    def solve_as_sub_problem(self, dual_variables, up_branching_indices=[], down_branching_indices=[], iteration=0, location=0):
         start_time = time.perf_counter()
         self.model = gp.Model(f"Single site solution")
         self.model.setParam('OutputFlag', 0)
@@ -151,7 +151,7 @@ class Model:
         self.declare_variables()
 
         # Setting objective
-        self.set_decomped_objective(dual_variables)
+        self.set_decomped_objective(dual_variables, location)
         # Adding constraints
         #TODO: Give the constraints numbers
         self.add_smolt_deployment_constraints()
@@ -164,7 +164,7 @@ class Model:
         self.add_forcing_constraints()
         self.add_employ_bin_forcing_constraints()
         self.add_x_forcing_constraint()
-        self.add_valid_inequality()
+        #self.add_valid_inequality()
 
         #Note that MAB constraint and end of horizon constraints are not added here.
 
@@ -316,7 +316,7 @@ class Model:
             , GRB.MAXIMIZE
         )
 
-    def set_decomped_objective(self, dual_variables):
+    def set_decomped_objective(self, dual_variables, location=0):
         self.model.setObjective(
             gp.quicksum(
                 self.scenario_probabilities[s] *
@@ -335,7 +335,9 @@ class Model:
                     for t_hat in range(self.t_size)
                 )
                 for s in range(self.s_size)
+
             )
+            - dual_variables.v_l[location]
             ,GRB.MAXIMIZE
         )
 
@@ -860,19 +862,19 @@ class Model:
             deploy_period_variables = data_classes.DeployPeriodVariables()
             for f in range(self.f_size):
                 for t in range(self.t_size):
-                    deploy_period_variables.y[f][t] = round(self.y[location,f , t].x, 2)
-                    deploy_period_variables.deploy_type_bin[f][t] = round(self.deploy_type_bin[location, f, t].x, 2)
+                    deploy_period_variables.y[f][t] = self.y[location,f , t].x
+                    deploy_period_variables.deploy_type_bin[f][t] = self.deploy_type_bin[location, f, t].x
                     for s in range(self.s_size):
-                        deploy_period_variables.w[f][t][s] = round(self.w[location, f, t_hat, t, s].x, 2)
+                        deploy_period_variables.w[f][t][s] = self.w[location, f, t_hat, t, s].x
                 for t in range(self.t_size +1):
                     for s in range(self.s_size):
-                        deploy_period_variables.x[f][t][s] = round(self.x[location,f,t_hat,t,s].x, 2)
+                        deploy_period_variables.x[f][t][s] = self.x[location,f,t_hat,t,s].x
             for t in range(self.t_size):
-                deploy_period_variables.deploy_bin[t] = round(self.deploy_bin[location,t].x,2)
+                deploy_period_variables.deploy_bin[t] = self.deploy_bin[location,t].x
                 for s in range(self.s_size):
-                    deploy_period_variables.employ_bin[t][s] = round(self.employ_bin[location,t,s].x,2)
-                    deploy_period_variables.employ_bin_granular[t][s] = round(self.employ_bin_granular[location, t_hat, t, s].x,2)
-                    deploy_period_variables.harvest_bin[t][s] = round(self.harvest_bin[location, t, s].x,2)
+                    deploy_period_variables.employ_bin[t][s] =self.employ_bin[location,t,s].x
+                    deploy_period_variables.employ_bin_granular[t][s] = self.employ_bin_granular[location, t_hat, t, s].x
+                    deploy_period_variables.harvest_bin[t][s] = self.harvest_bin[location, t, s].x
             column.production_schedules[t_hat] = deploy_period_variables
 
         return column

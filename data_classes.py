@@ -31,6 +31,7 @@ class LShapedSubProblemDualVariables:
 @dataclass
 class CGDualVariablesFromMaster:
     iteration: int = field(default=0)
+    v_l: list[float] = field(default_factory=lambda: [0.0 for l in range(configs.NUM_LOCATIONS)])
     u_MAB: list[list[float]] = field(default_factory=lambda: [[0.0 for s in range(configs.NUM_SCENARIOS)]for t in range(parameters.number_periods + 1)]) #t, s
     u_EOH: list[float] = field(default_factory=lambda: [0.0 for s in range(configs.NUM_SCENARIOS)])#s
 
@@ -38,15 +39,19 @@ class CGDualVariablesFromMaster:
         writer = pd.ExcelWriter(f"{configs.OUTPUT_DIR}dual_variables_iteration{self.iteration}.xlsx")
         pd.DataFrame(self.u_MAB).to_excel(writer, index=False, sheet_name="u_MAB")
         pd.Series(self.u_EOH).to_excel(writer, index=False, sheet_name="u_EOH")
+        pd.Series(self.v_l).to_excel(writer, index=False, sheet_name="v_l")
         writer.close()
     
     def __eq__(self, other): 
-        for i in range(parameters.number_periods + 1):
-            for j in range(configs.NUM_SCENARIOS):
-                if self.u_MAB[i][j] != other.u_MAB[i][j]:
+        for t in range(parameters.number_periods + 1):
+            for s in range(configs.NUM_SCENARIOS):
+                if self.u_MAB[t][s] != other.u_MAB[t][s]:
                     return False
-        for i in range(configs.NUM_SCENARIOS):
-            if self.u_EOH[i] != other.u_EOH[i]:
+        for s in range(configs.NUM_SCENARIOS):
+            if self.u_EOH[s] != other.u_EOH[s]:
+                return False
+        for l in range(configs.NUM_LOCATIONS):
+            if self.v_l[l] != other.v_l[l]:
                 return False
         return True
         
