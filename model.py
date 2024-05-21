@@ -23,7 +23,7 @@ class Model:
                  EOH_shadow_prices_df = pd.DataFrame(),
                  input_data = InputData(),
                  parameters = initialization.parameters,
-                 scenario_probabilities = initialization.configs.SCENARIO_PROBABILITIES,
+                 scenario_probabilities = configs.SCENARIO_PROBABILITIES,
                  iterations = 0
                  ):
         #Imported classes, containing parameters and data
@@ -164,7 +164,7 @@ class Model:
         self.add_forcing_constraints()
         self.add_employ_bin_forcing_constraints()
         self.add_x_forcing_constraint()
-        #self.add_valid_inequality()
+        self.add_valid_inequality()
 
         #Note that MAB constraint and end of horizon constraints are not added here.
 
@@ -335,7 +335,6 @@ class Model:
                     for t_hat in range(self.t_size)
                 )
                 for s in range(self.s_size)
-
             )
             - dual_variables.v_l[location]
             ,GRB.MAXIMIZE
@@ -674,7 +673,7 @@ class Model:
             gp.quicksum(
                 self.deploy_bin[l, tau] for tau in range(t + 1, min(
                     self.growth_sets[l].loc[(self.smolt_weights[f], f"Scenario {s}")][
-                        t] + initialization.parameters.min_fallowing_periods + 1, self.t_size))
+                        t] + initialization.parameters.min_fallowing_periods + 2, self.t_size))
             ) <= (1 - self.deploy_bin[l, t]) * bigM  # 50 should be and adequately large bigM
             for s in range(self.s_size)
             for f in range(self.f_size)
@@ -862,19 +861,19 @@ class Model:
             deploy_period_variables = data_classes.DeployPeriodVariables()
             for f in range(self.f_size):
                 for t in range(self.t_size):
-                    deploy_period_variables.y[f][t] = self.y[location,f , t].x
-                    deploy_period_variables.deploy_type_bin[f][t] = self.deploy_type_bin[location, f, t].x
+                    deploy_period_variables.y[f][t] = round(self.y[location,f , t].x, 2)
+                    deploy_period_variables.deploy_type_bin[f][t] = round(self.deploy_type_bin[location, f, t].x, 2)
                     for s in range(self.s_size):
-                        deploy_period_variables.w[f][t][s] = self.w[location, f, t_hat, t, s].x
+                        deploy_period_variables.w[f][t][s] = round(self.w[location, f, t_hat, t, s].x, 2)
                 for t in range(self.t_size +1):
                     for s in range(self.s_size):
-                        deploy_period_variables.x[f][t][s] = self.x[location,f,t_hat,t,s].x
+                        deploy_period_variables.x[f][t][s] = round(self.x[location,f,t_hat,t,s].x, 2)
             for t in range(self.t_size):
-                deploy_period_variables.deploy_bin[t] = self.deploy_bin[location,t].x
+                deploy_period_variables.deploy_bin[t] = round(self.deploy_bin[location,t].x, 2)
                 for s in range(self.s_size):
-                    deploy_period_variables.employ_bin[t][s] =self.employ_bin[location,t,s].x
-                    deploy_period_variables.employ_bin_granular[t][s] = self.employ_bin_granular[location, t_hat, t, s].x
-                    deploy_period_variables.harvest_bin[t][s] = self.harvest_bin[location, t, s].x
+                    deploy_period_variables.employ_bin[t][s] =round(self.employ_bin[location,t,s].x, 2)
+                    deploy_period_variables.employ_bin_granular[t][s] = round(self.employ_bin_granular[location, t_hat, t, s].x, 2)
+                    deploy_period_variables.harvest_bin[t][s] = round(self.harvest_bin[location, t, s].x, 2)
             column.production_schedules[t_hat] = deploy_period_variables
 
         return column

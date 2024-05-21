@@ -28,7 +28,7 @@ class BranchAndPrice:
         while q:
             print(q)
             current_node = q.pop(0)
-            feasible = self.column_generation(current_node)
+            feasible = self.column_generation_ls(current_node)
             self.master_logger.info(f"Solved node: {current_node.number}")
             if not feasible: #Pruning criteria 1
                 #Prunes the node if the Node is not feasible
@@ -114,14 +114,19 @@ class BranchAndPrice:
                 sub.solve_as_sub_problem(dual_variables, up_branching_indices=node_label.up_branching_indices[i],
                                          down_branching_indices=node_label.down_branching_indices[i],
                                          iteration=self.master.iterations_k)
+                if sub.model.status != GRB.OPTIMAL:
+                    self.master_logger.info(f"{self.master.iterations_k}: INFEASIBLE in sub_problem {i}")
+                    return False
 
                 column = sub.get_column_object(iteration=self.master.iterations_k)
                 column.site = i
-                column.write_to_file()
+                #column.write_to_file()
+                #TODO:mAKE CONDITIONAL ON sub-problem being feasible
                 self.master.columns[(i, self.master.iterations_k)] = column
                 self.sub_logger.info(f"iteration {self.master.iterations_k} / site {i}:{sub.model.objVal}")
             self.master.update_model(node_label) 
             self.master.solve()
+            self.master.model.write(f"master_{self.master.iterations_k}.lp")
             #self.master.model.write(f"master_model_iteration_{self.master.iterations_k}.lp")                  
             if self.master.model.status != GRB.OPTIMAL:     # To prevent errors, handled by pruning in B&P
                 self.master_logger.info(f"{self.master.iterations_k}: INFEASIBLE!")
@@ -194,19 +199,18 @@ class BranchAndPrice:
 
     def generate_initial_columns(self):
         initial = Model(sites.SITE_LIST)
-        initial_columns = initial.create_initial_columns(0)
-        initial_columns2 = initial.create_zero_column(1)
+        initial_columns2 = initial.create_zero_column(0)
 
 
-        for column in initial_columns:
-            self.master.columns[(column.site, column.iteration_k)] = column
+        #for column in initial_columns:
+        #    self.master.columns[(column.site, column.iteration_k)] = column
 
 
         for column in initial_columns2:
             self.master.columns[(column.site, column.iteration_k)] = column
 
         self.master.initialize_model()
-        self.master.iterations_k += 1
+        self.master.iterations_k = 1
 
     def set_up_logging(self):
         path = configs.LOG_DIR

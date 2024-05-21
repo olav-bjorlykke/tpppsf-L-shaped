@@ -25,13 +25,14 @@ class LShapedMasterProblem():
 
     def initialize_model(self, node_label):
         self.model = gp.Model(f"L-shaped master problem model")
-        self.model.setParam('OutputFlag', 0)
+        self.model.setParam("OutputFlag", 0)
         self.declare_variables()
         self.set_objective()
         self.add_initial_condition_constraint()
         self.add_smolt_deployment_constraints()
         self.add_valid_inequality()
         self.add_branching_constraints(node_label)
+        self.add_initial_theta_constraint()
     
     def solve(self):
         self.model.optimize()
@@ -148,11 +149,20 @@ class LShapedMasterProblem():
         bigM = parameters.valid_ineqaulity_lshaped_master_bigM
         self.model.addConstrs(
             gp.quicksum(
-                self.deploy_bin[tau] for tau in range(t + 1, min(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {s}")][t] + parameters.min_fallowing_periods + 1, self.t_size))
+                self.deploy_bin[tau] for tau in range(t + 1, min(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {s}")][t] + parameters.min_fallowing_periods + 2, self.t_size))
             ) <= (1 - self.deploy_bin[t])*bigM #50 should be and adequately large bigM
             for s in range(self.s_size)
             for f in range(self.f_size)
             for t in range(self.t_size)
+        )
+
+
+    def add_initial_theta_constraint(self):
+        self.model.addConstr(
+            gp.quicksum(
+                self.scenario_probabilities[s] * self.theta[s] for s in range(self.s_size)
+            ) <= 100000000
+            , name="Theta init constraint"
         )
 
     def get_variable_values(self):
@@ -180,6 +190,7 @@ class LShapedMasterProblem():
             deploy_bin_values.append(self.deploy_bin[t].getAttr("x"))
         #Returns a data_class with the stores variables
         return LShapedMasterProblemVariables(self.l, y_values, deploy_bin_values, deploy_type_bin_values)
+
 
     def add_branching_constraints(self, node_label):
         for index in node_label.up_branching_indices[self.l]:

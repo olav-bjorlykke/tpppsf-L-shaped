@@ -166,13 +166,15 @@ class CGMasterProblem:
             for indicie in node_label.up_branching_indices[location]:
                 self.model.addConstr((
                     self.deploy_bin[location, indicie] == 1
-                ))
+                ), name="UP-Branch"
+                )
         
         for location in range(len(node_label.down_branching_indices)):
             for indicie in node_label.down_branching_indices[location]:
                 self.model.addConstr((
                     self.deploy_bin[location, indicie] == 0
-                ))
+                ), name="DOWN-Branch"
+                )
 
     """
     Variable tracking constraints
