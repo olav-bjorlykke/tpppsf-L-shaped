@@ -146,7 +146,7 @@ class BranchAndPrice:
         dual_variables = CGDualVariablesFromMaster()
         sub_problems = [LShapedAlgorithm(sites.SITE_LIST[i], i, node_label) for i in range(len(sites.SITE_LIST))]
         
-        while previous_dual_variables != dual_variables or self.master.iterations_k < 10:
+        while previous_dual_variables != dual_variables or self.master.iterations_k < 5:
             previous_dual_variables = dual_variables
             for i, sub in enumerate(sub_problems):
                 self.general_logger.info(f"## solved subproblem {i}, iteration {self.master.iterations_k} ")

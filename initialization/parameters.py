@@ -7,8 +7,8 @@ import initialization.configs as configs
 '''
 DECLARING GLOBAL PARAMETERS
 '''
-smolt_deployment_upper_bound = 100000 #Upper bound for biomass of smolt deployed in kilo
-smolt_deployment_lower_bound = 10 #Lower bound of smolt deployed
+smolt_deployment_upper_bound = 80000 #Upper bound for biomass of smolt deployed in kilo
+smolt_deployment_lower_bound = 100 #Lower bound of smolt deployed
 max_harvest = 10000 * 1000 #Max biomass that can be harvested in any period in tons
 min_harvest = 1000 * 1000 #Minimum amount of biomass that can be harvested if biomass is harvested in tons
 max_harvest_company = 6000 * 1000 #Max biomass that can be havested across the company in tons, currently unlimited

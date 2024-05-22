@@ -319,8 +319,9 @@ class Model:
     def set_decomped_objective(self, dual_variables, location=0):
         self.model.setObjective(
             gp.quicksum(
-                self.scenario_probabilities[s] *
+
                 gp.quicksum(
+                    self.scenario_probabilities[s] *
                     gp.quicksum(
                         self.w[l, f, t_hat, t, s] for t in range(self.growth_sets[l].loc[(self.smolt_weights[f], f"Scenario {s}")][t_hat],
                                        min(t_hat + self.parameters.max_periods_deployed, self.t_size))
@@ -673,7 +674,7 @@ class Model:
             gp.quicksum(
                 self.deploy_bin[l, tau] for tau in range(t + 1, min(
                     self.growth_sets[l].loc[(self.smolt_weights[f], f"Scenario {s}")][
-                        t] + initialization.parameters.min_fallowing_periods + 2, self.t_size))
+                        t] + initialization.parameters.min_fallowing_periods + 1, self.t_size))
             ) <= (1 - self.deploy_bin[l, t]) * bigM  # 50 should be and adequately large bigM
             for s in range(self.s_size)
             for f in range(self.f_size)

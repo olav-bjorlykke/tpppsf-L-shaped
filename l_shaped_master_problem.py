@@ -26,6 +26,9 @@ class LShapedMasterProblem():
     def initialize_model(self, node_label):
         self.model = gp.Model(f"L-shaped master problem model")
         self.model.setParam("OutputFlag", 0)
+        self.model.setParam("MIPFocus", 3)
+        self.model.setParam("NumericFocus", 3)
+        self.model.setParam("IntegralityFocus", 1)
         self.declare_variables()
         self.set_objective()
         self.add_initial_condition_constraint()
@@ -54,7 +57,7 @@ class LShapedMasterProblem():
         """
         self.model.setObjective(
             gp.quicksum(
-                self.scenario_probabilities[s] * self.theta[s] for s in range(self.s_size)
+                self.theta[s] for s in range(self.s_size)
             )
             ,GRB.MAXIMIZE
         )
@@ -100,14 +103,14 @@ class LShapedMasterProblem():
             for f in range(self.f_size)
         )
 
-        if self.site.init_biomass < 1:
+        if self.site.init_biomass < 0.01:
             #This if statement imposes the biomass limitation in period 0, if there is no initial biomass at the site.
             #If there is biomass at the site in period 0, the deployed biomass will be limited by the initial condition.
 
 
             self.model.addConstr(
                 # This is the constraint (5.4) - which restricts the deployment of smolt to an upper bound, while forcing the binary deploy variable
-                gp.quicksum(self.y[ f, 0] for f in range(self.f_size)) <= parameters.smolt_deployment_upper_bound * self.deploy_bin[0]
+                gp.quicksum(self.y[f, 0] for f in range(self.f_size)) <= parameters.smolt_deployment_upper_bound * self.deploy_bin[0]
                 , name="Deploy limit if no init biomass at site"
             )
             self.model.addConstr(
@@ -160,8 +163,8 @@ class LShapedMasterProblem():
     def add_initial_theta_constraint(self):
         self.model.addConstr(
             gp.quicksum(
-                self.scenario_probabilities[s] * self.theta[s] for s in range(self.s_size)
-            ) <= 100000000
+                self.theta[s] for s in range(self.s_size)
+            ) <= 1000000000
             , name="Theta init constraint"
         )
 
@@ -183,6 +186,7 @@ class LShapedMasterProblem():
             #Iterating through through all time periods for the given smolt type
             for t in range(self.t_size):
                 #Appending the y and deploy variables to the 2-D list for the given smolt type and period
+
                 y_values[f].append(self.y[f, t].getAttr("x"))
                 deploy_type_bin_values[f].append(self.deploy_type_bin[f, t].getAttr("x"))
         for t in range(self.t_size):
@@ -191,18 +195,43 @@ class LShapedMasterProblem():
         #Returns a data_class with the stores variables
         return LShapedMasterProblemVariables(self.l, y_values, deploy_bin_values, deploy_type_bin_values)
 
+    #Alternative code
+    """
+            for f in range(self.f_size):
+            #Adding an empty list to the lists
+            y_values.append([])
+            deploy_type_bin_values.append([])
+            #Iterating through through all time periods for the given smolt type
+            for t in range(self.t_size):
+                #Appending the y and deploy variables to the 2-D list for the given smolt type and period
+                if self.y[f,t].x > parameters.smolt_deployment_lower_bound:
+                    y_values[f].append(self.y[f, t].getAttr("x"))
+                    deploy_type_bin_values[f].append(self.deploy_type_bin[f, t].getAttr("x"))
+                else:
+                    deploy_type_bin_values[f].append(0)
+                    y_values[f].append(0.0)
+        for t in range(self.t_size):
+            #Appending the deploy binary values to the list
+            if self.deploy_bin[t].x == 1:
+                deploy_bin_values.append(self.deploy_bin[t].getAttr("x"))
+            else:
+                deploy_bin_values.append(0)
+    """
+
 
     def add_branching_constraints(self, node_label):
         for index in node_label.up_branching_indices[self.l]:
-            self.model.addConstr((
+            self.model.addConstr(
                 self.deploy_bin[index] == 1
-            ))
+                , name="branch-up"
+            )
         
        
         for index in node_label.down_branching_indices[self.l]:
-            self.model.addConstr((
+            self.model.addConstr(
                 self.deploy_bin[index] == 0
-            ))
+                ,name="branch-down"
+            )
 
     def print_variable_values(self):
         variables = self.get_variable_values()

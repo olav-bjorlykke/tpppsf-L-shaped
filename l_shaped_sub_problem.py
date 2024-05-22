@@ -37,9 +37,8 @@ class LShapedSubProblem(Model):
     """
     def initialize_model(self):
         self.model = gp.Model("LShapedSubProblem")
-        #self.model.setParam('OutputFlag', 0)
+        self.model.setParam('OutputFlag', 0)
         self.model.setParam('DualReductions', 0)
-        self.model.setParam("OutputFlag", 0)
         self.declare_variables()
         #1. Setobjective
         self.add_cg_dual_objective()
@@ -53,10 +52,11 @@ class LShapedSubProblem(Model):
         self.add_harvest_constraints()
         self.add_employment_bin_forcing_constraints()
         self.add_valid_inequality_sub_problem()
-        self.add_test_forcing_constraint()
         #self.add_x_forcing_constraint()
 
     def update_model(self, fixed_variables):
+        self.model.setParam("MIPFocus", 0)
+        self.model.setParam("NumericFocus", 0)
         self.fixed_variables = fixed_variables
         self.model.remove(self.model.getConstrs())
         self.add_fallowing_constraints()
@@ -72,6 +72,8 @@ class LShapedSubProblem(Model):
         self.add_valid_inequality_sub_problem()
 
     def update_model_to_mip(self, fixed_variables):
+        self.model.setParam("MIPFocus", 3)
+        self.model.setParam("NumericFocus", 3)
         self.model.remove(self.model.getConstrs())
         self.model.remove(self.model.getVars())
         self.declare_mip_variables()
@@ -155,13 +157,12 @@ class LShapedSubProblem(Model):
     def add_mip_objective(self):
         self.model.setObjective(
             gp.quicksum(
+                configs.SCENARIO_PROBABILITIES[self.scenario] *
                 gp.quicksum(self.w[f, t_hat, t]
-                            for f in range(self.f_size)
-                            for t_hat in range(self.t_size)
-                            for t in
-                            range(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat],
+                            for t in range(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat],
                                   min(t_hat + parameters.max_periods_deployed, self.t_size))
-                            )
+                )
+
                 - gp.quicksum(
                     self.x[f, t_hat, t] * self.cg_dual_variables.u_MAB[t][self.scenario]
                     for t in range(t_hat, min(t_hat + parameters.max_periods_deployed, self.t_size + 1))
@@ -176,6 +177,7 @@ class LShapedSubProblem(Model):
         penalty_parameter = parameters.penalty_parameter_L_sub #This should not be very high -> It will lead to numeric instability
         self.model.setObjective(
             gp.quicksum(
+                configs.SCENARIO_PROBABILITIES[self.scenario] *
                 gp.quicksum(
                     self.w[f, t_hat, t] for t in range(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat],
                                     min(t_hat + parameters.max_periods_deployed, self.t_size))
@@ -189,7 +191,7 @@ class LShapedSubProblem(Model):
                 for t_hat in range(self.t_size)
             )
             - penalty_parameter * gp.quicksum(self.z_slack_1[t] for t in range(self.t_size))
-            - penalty_parameter * gp.quicksum(self.z_slack_2[t_hat, t] for t_hat in range(self.t_size) for t in range(t_hat, self.t_size))
+            - penalty_parameter * 500 * gp.quicksum(self.z_slack_2[t_hat, t] for t_hat in range(self.t_size) for t in range(t_hat, self.t_size))
             - penalty_parameter * gp.quicksum(self.z_slack_3[t] for t in range(self.t_size))
             , GRB.MAXIMIZE
         )
@@ -253,7 +255,7 @@ class LShapedSubProblem(Model):
             for t_hat in range(self.t_size)
             for f in range(self.f_size)
             for t in range(min(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat], self.t_size),
-                           min(t_hat + parameters.max_periods_deployed, self.t_size))
+                            self.t_size)
 
         )
     def add_employment_bin_forcing_constraints(self):
@@ -297,7 +299,7 @@ class LShapedSubProblem(Model):
 
     def add_MAB_requirement_constraint_lp(self):
         self.model.addConstrs((
-            gp.quicksum(self.x[f, t_hat, t] for f in range(self.f_size)) - self.z_slack_2[t_hat,t] <= self.site.MAB_capacity * 0.999
+            gp.quicksum(self.x[f, t_hat, t] for f in range(self.f_size)) - self.z_slack_2[t_hat,t] <= self.site.MAB_capacity * 0.9999
             for t_hat in range(self.t_size)
             for t in range(t_hat, min(t_hat + parameters.max_periods_deployed, self.t_size +1))
         ), name="MAB_constraints"
@@ -341,13 +343,7 @@ class LShapedSubProblem(Model):
             for t in range(min(t_hat + parameters.max_periods_deployed, self.t_size + 1), self.t_size + 1)
             for f in range(self.f_size)
         )
-    def add_test_forcing_constraint(self):
-        self.model.addConstrs(
-            self.x[f, t_hat, t] <= 100000000
-            for t_hat in range(self.t_size)
-            for t in range(self.t_size + 1)
-            for f in range(self.f_size)
-        )
+
 
 
     """

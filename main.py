@@ -30,11 +30,11 @@ if __name__ == '__main__':
     dual_variables.u_MAB[13][0] = 2.331633
     dual_variables.u_MAB[12][1] = 5.921953
     dual_variables.u_MAB[35][0] = 2.75
-    dual_variables.u_MAB[38][1] = 5.2499
-    dual_variables.u_MAB[45][0] = 70
-    dual_variables.u_MAB[46][1] = 70
+    dual_variables.u_MAB[38][1] = 3.2499
+    dual_variables.u_MAB[45][0] = 0.2
+    dual_variables.u_MAB[46][1] = 0.2
     dual_variables.u_MAB[35][0] = 2.75
-    dual_variables.u_MAB[58][1] = 12
+    dual_variables.u_MAB[58][1] = 0.1
     dual_variables.u_MAB[3][0] = 2.75
     dual_variables.u_MAB[5][1] = 5.1
 

@@ -47,12 +47,15 @@ class LShapedAlgorithm:
             for s in range(configs.NUM_SCENARIOS):
                 subproblems[s].update_model(new_master_problem_solution)
                 subproblems[s].solve()
-                self.ls_logger.info(f"{iteration_counter} Sub: {s}: Objective: {subproblems[s].model.objVal}")
                 subproblems[s].model.write(f"subsub{s}.lp")
                 if subproblems[s].model.status != GRB.OPTIMAL:
                     subproblems[s].model.computeIIS()
                     subproblems[s].model.write(f"subsub{s}.ilp")
-                    subproblems[s].model.write(f"subsub{s}.lp")
+
+
+                self.ls_logger.info(f"{iteration_counter} Sub: {s}: Objective: {subproblems[s].model.objVal}")
+                subproblems[s].model.write(f"subsub{s}.lp")
+
                 #Fetch dual variables from sub-problem, and write to list so they can be passed to the master problem
                 dual_variables[s] = subproblems[s].get_dual_values()
             #Add new optimality cut, based on dual variables
@@ -77,8 +80,6 @@ class LShapedAlgorithm:
 
         #This prints the solution to file -> Can be deleted once integrated with colum generation
         new_master_problem_solution.write_to_file()
-        for s in range(configs.NUM_SCENARIOS):
-            subproblems[s].print_variable_values()
         
         self.subproblems = subproblems
 
