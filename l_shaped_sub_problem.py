@@ -157,7 +157,7 @@ class LShapedSubProblem(Model):
     def add_mip_objective(self):
         self.model.setObjective(
             gp.quicksum(
-                configs.SCENARIO_PROBABILITIES[self.scenario] *
+                #configs.SCENARIO_PROBABILITIES[self.scenario] *
                 gp.quicksum(self.w[f, t_hat, t]
                             for t in range(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat],
                                   min(t_hat + parameters.max_periods_deployed, self.t_size))
@@ -177,7 +177,7 @@ class LShapedSubProblem(Model):
         penalty_parameter = parameters.penalty_parameter_L_sub #This should not be very high -> It will lead to numeric instability
         self.model.setObjective(
             gp.quicksum(
-                configs.SCENARIO_PROBABILITIES[self.scenario] *
+                #configs.SCENARIO_PROBABILITIES[self.scenario] *
                 gp.quicksum(
                     self.w[f, t_hat, t] for t in range(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat],
                                     min(t_hat + parameters.max_periods_deployed, self.t_size))

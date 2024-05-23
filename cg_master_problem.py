@@ -17,7 +17,7 @@ class CGMasterProblem:
     """
     Initializing and updating model
     """
-    def initialize_model(self): #TODO:FIx after constraints are made
+    def initialize_model(self):
         self.model = gp.Model(f"CG master problem model")
         self.declare_variables()
         self.set_objective()
@@ -180,6 +180,11 @@ class CGMasterProblem:
     Variable tracking constraints
     """
     def add_variable_tracking_constraints(self):
+        """
+
+        :return:
+        """
+
         """
         deploy_periods = [[] for l in range(self.l_size)]
         for l in range(self.l_size):

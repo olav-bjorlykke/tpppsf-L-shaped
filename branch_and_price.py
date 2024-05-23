@@ -12,8 +12,10 @@ class BranchAndPrice:
     def __init__(self):
         self.master = CGMasterProblem()
         self.set_up_logging()
+        self.upper_bound = 1000000000000
+        self.lower_bound = 0
 
-    def branch_and_price(self):
+    def branch_and_price(self, l_shaped: bool):
         self.generate_initial_columns()
         #Initializing branch and price
         current_best_solution = 0
@@ -25,10 +27,16 @@ class BranchAndPrice:
         for indexes in branched_indexes:
             root.up_branching_indices[indexes[0]].append(indexes[1])
 
+        current_node = root
         while q:
-            print(q)
+            if q[0].level > current_node.level: self.upper_bound = self.get_upper_bounds(solved_nodes, current_node.level)
             current_node = q.pop(0)
-            feasible = self.column_generation_ls(current_node)
+            feasible = False
+            if l_shaped:
+                feasible = self.column_generation_ls(current_node)
+            else:
+                feasible = self.column_generation(current_node)
+
             self.master_logger.info(f"Solved node: {current_node.number}")
             if not feasible: #Pruning criteria 1
                 #Prunes the node if the Node is not feasible
@@ -44,11 +52,12 @@ class BranchAndPrice:
                 self.master.model.write("master_mip_model.ilp")
             else:
                 mip_solution = self.master.model.getObjective().getValue()
-            if lp_solution < current_best_solution: #Pruning criteria 2
+            if lp_solution < self.lower_bound: #Pruning criteria 2
                 #Prunes the node if the LP solution is worse than the current best MIP solution found
                 current_node.LP_solution = lp_solution
                 current_node.MIP_solution = mip_solution
                 solved_nodes.append(current_node)
+                self.bp_logger.info(f"PRUNED - Node: {current_node.number} / iteration {self.master.iterations_k} / up_branching: {current_node.up_branching_indices} / down_branching: {current_node.down_branching_indices} / parent: {current_node.parent}")
                 continue
             if integer_feasible: #Pruning criteria 3
                 #If the LP solution is integer feasible -> prune!
@@ -56,11 +65,17 @@ class BranchAndPrice:
                 current_node.MIP_solution = lp_solution
                 current_node.integer_feasible = True
                 solved_nodes.append(current_node)
+                if lp_solution > self.lower_bound:
+                    self.lower_bound = lp_solution
+                self.bp_logger.info(f"PRUNED - Node: {current_node.number} / iteration {self.master.iterations_k} / up_branching: {current_node.up_branching_indices} / down_branching: {current_node.down_branching_indices} / parent: {current_node.parent} / lp_solution:{current_node.LP_solution} / mip_solution:{current_node.MIP_solution} / level:{current_node.level} / ub:{self.upper_bound} / lb:{self.lower_bound} / gap:{100 * (self.upper_bound - self.lower_bound)/self.upper_bound}%")
                 continue
 
             #Setting the variables in the NodeLabel object
             current_node.LP_solution = lp_solution
             current_node.MIP_solution = mip_solution
+            if mip_solution > self.lower_bound: self.lower_bound = mip_solution
+
+
             mip_solution = 0
             lp_solution = 0
             #Appending the node to solved nodes
@@ -69,7 +84,7 @@ class BranchAndPrice:
             #Deciding which variable to branch on
                         # Returns a list with [location, index] for the branching variable
             branched_indexes.append(branching_variable)
-            self.bp_logger.info(f"Node: {current_node.number} / iteration {self.master.iterations_k} / up_branching: {current_node.up_branching_indices} / down_branching: {current_node.down_branching_indices} / parent: {current_node.parent} / lp_solution:{current_node.LP_solution} / mip_solution:{current_node.MIP_solution}")
+            self.bp_logger.info(f"Node: {current_node.number} / iteration {self.master.iterations_k} / up_branching: {current_node.up_branching_indices} / down_branching: {current_node.down_branching_indices} / parent: {current_node.parent} / lp_solution:{current_node.LP_solution} / mip_solution:{current_node.MIP_solution} / level:{current_node.level} / ub:{self.upper_bound} / lb:{self.lower_bound} / gap:{100 * (self.upper_bound - self.lower_bound)/self.upper_bound}%")
             #Book keeping to store the branching index
             new_up_branching_indicies = copy.deepcopy(current_node.up_branching_indices)
             new_down_branching_indicies = copy.deepcopy(current_node.down_branching_indices)
@@ -126,15 +141,15 @@ class BranchAndPrice:
                 self.sub_logger.info(f"iteration {self.master.iterations_k} / site {i}:{sub.model.objVal}")
             self.master.update_model(node_label) 
             self.master.solve()
-            self.master.model.write(f"master_{self.master.iterations_k}.lp")
-            #self.master.model.write(f"master_model_iteration_{self.master.iterations_k}.lp")                  
+            #self.master.model.write(f"master_{self.master.iterations_k}.lp")
+            #self.master.model.write(f"master_model_iteration_{self.master.iterations_k}.lp")
             if self.master.model.status != GRB.OPTIMAL:     # To prevent errors, handled by pruning in B&P
                 self.master_logger.info(f"{self.master.iterations_k}: INFEASIBLE!")
                 self.master.iterations_k -= 1
                 return False
             self.master_logger.info(f"{self.master.iterations_k}: objective = {self.master.model.objVal}")                    
             dual_variables = self.master.get_dual_variables()
-            dual_variables.write_to_file()
+            #dual_variables.write_to_file()
 
         return True
 
@@ -164,53 +179,34 @@ class BranchAndPrice:
                 return False
             self.master_logger.info(f"{self.master.iterations_k}: objective = {self.master.model.objVal}")                    
             dual_variables = self.master.get_dual_variables()
-            dual_variables.write_to_file()
             #dual_variables.write_to_file()
-        return True
-
-    def column_generation_test(self, node_label):
-        #Initializing sub problems
-        sub_problems = [Model(sites.SITE_LIST[i], self.master.iterations_k) for i in range(len(sites.SITE_LIST))]
-        self.master.model.setParam('OutputFlag', 0)
-        dual_variables = CGDualVariablesFromMaster(u_EOH=[1 for _ in range(configs.NUM_SCENARIOS)])
-        for _ in range(5):
-            
-            for i, sub in enumerate(sub_problems):
-                sub.solve_as_sub_problem(dual_variables, up_branching_indices=node_label.up_branching_indices[i],
-                                         down_branching_indices=node_label.down_branching_indices[i],
-                                         iteration=self.master.iterations_k)
-
-                column = sub.get_column_object(iteration=self.master.iterations_k)
-                column.site = i
-                #column.write_to_file()
-                self.master.columns[(i, self.master.iterations_k)] = column
-                self.sub_logger.info(f"iteration {self.master.iterations_k} / site {i}:{sub.model.objVal}")
-            self.master.update_model(node_label) 
-            self.master.solve()                  #TODO:I think maybe this becomes infeasible when introducing the branching constraints and solving before generating more columns - any way to get around this?
-            if self.master.model.status != GRB.OPTIMAL:  # To prevent errors, handled by pruning in B&P
-                self.master.iterations_k -= 1
-                self.master_logger.info(f"{self.master.iterations_k}: INFEASIBLE!") 
-                return False
-            self.master_logger.info(f"{self.master.iterations_k}:objective = {self.master.model.objVal}")                    
-            dual_variables = self.master.get_dual_variables()
             #dual_variables.write_to_file()
-
         return True
 
     def generate_initial_columns(self):
         initial = Model(sites.SITE_LIST)
-        initial_columns2 = initial.create_zero_column(0)
+        initial_columns = initial.create_zero_column(0)
+        initial_columns2 = initial.create_initial_columns(1)
 
 
-        #for column in initial_columns:
-        #    self.master.columns[(column.site, column.iteration_k)] = column
+        for column in initial_columns:
+            self.master.columns[(column.site, column.iteration_k)] = column
 
 
         for column in initial_columns2:
             self.master.columns[(column.site, column.iteration_k)] = column
 
         self.master.initialize_model()
-        self.master.iterations_k = 1
+        self.master.iterations_k = 2
+
+    def get_upper_bounds(self, solved_nodes, level):
+        lvl_upper_bound = 0
+        for node in solved_nodes:
+            if (node.level == level) and (node.LP_solution > lvl_upper_bound):
+                lvl_upper_bound = node.LP_solution
+
+        return lvl_upper_bound
+
 
     def set_up_logging(self):
         path = configs.LOG_DIR
@@ -241,19 +237,6 @@ class BranchAndPrice:
 
 
 
-
-    """
-    def write_node_to_file(self, node_label):
-        f = open(f"{configs.OUTPUT_DIR}Branch_and_Price_nodes.txt", "a")
-        f.write(f"Number: {node_label.number}, 
-                level: {node_label.level}, 
-                parent: {node_label.parent}, 
-                LP-solution: {node_label.LP_solution}, 
-                MIP-solution: {node_label.MIP_solution}, 
-                Up-indicies: {node_label.up_branching_indices}, 
-                Down-indicies: {node_label.down_branching_indices} \n")
-        f.close()
-    """
 
 if __name__ == '__main__':
     bp = BranchAndPrice()

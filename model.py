@@ -212,6 +212,7 @@ class Model:
         self.add_x_forcing_constraint()
         self.add_valid_inequality()
 
+
         # Running gurobi to optimize model
         self.model.optimize()
 
@@ -615,7 +616,6 @@ class Model:
         )
 
         self.model.addConstrs(
-            # TODO:This is a second forcing constraint that is not in the mathematical model, put it in the model somehow
             self.w[l, f, t_hat, t, s] == 0
             for l in range(self.l_size)
             for f in range(self.f_size)
@@ -624,18 +624,7 @@ class Model:
             for s in range(self.s_size)
         )
 
-    def add_x_forcing_constraint(self):#TODO: check if used or remove
-        """
-        self.model.addConstrs(
-            self.x[l, f, t_hat, self.t_size, s] <= self.deploy_bin[l,t_hat] * self.parameters.MAB_company_limit
-            for t_hat in range(self.t_size)
-            for l in range(self.l_size)
-            for f in range(self.f_size)
-            for s in range(self.s_size)
-        )
-        :return:
-        """
-
+    def add_x_forcing_constraint(self):
         self.model.addConstrs(
             self.x[l, f, t_hat, t, s] <= 0
             for t_hat in range(self.t_size)

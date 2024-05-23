@@ -131,7 +131,8 @@ class LShapedMasterProblem():
 
     def add_optimality_cuts(self, dual_variables):
         self.model.addConstrs(
-            self.theta[s] <= (
+            self.theta[s] <= configs.SCENARIO_PROBABILITIES[s] *
+            (
                 gp.quicksum(dual_variables[s].rho_1[t] * (1 - self.deploy_bin[t]) * parameters.min_fallowing_periods for t in range(self.t_size-parameters.min_fallowing_periods))
                 + 
                 gp.quicksum(gp.quicksum(dual_variables[s].rho_2[f][t] * self.y[f, t] for f in range(self.f_size)) for t in range(self.t_size))
@@ -145,7 +146,8 @@ class LShapedMasterProblem():
                 gp.quicksum(dual_variables[s].rho_6[t] for t in range(self.t_size))
                 + 
                 gp.quicksum(dual_variables[s].rho_7[t] for t in range(self.t_size))
-            )for s in range(self.s_size)
+            )
+            for s in range(self.s_size)
         )
 
     def add_valid_inequality(self):
@@ -195,28 +197,6 @@ class LShapedMasterProblem():
         #Returns a data_class with the stores variables
         return LShapedMasterProblemVariables(self.l, y_values, deploy_bin_values, deploy_type_bin_values)
 
-    #Alternative code
-    """
-            for f in range(self.f_size):
-            #Adding an empty list to the lists
-            y_values.append([])
-            deploy_type_bin_values.append([])
-            #Iterating through through all time periods for the given smolt type
-            for t in range(self.t_size):
-                #Appending the y and deploy variables to the 2-D list for the given smolt type and period
-                if self.y[f,t].x > parameters.smolt_deployment_lower_bound:
-                    y_values[f].append(self.y[f, t].getAttr("x"))
-                    deploy_type_bin_values[f].append(self.deploy_type_bin[f, t].getAttr("x"))
-                else:
-                    deploy_type_bin_values[f].append(0)
-                    y_values[f].append(0.0)
-        for t in range(self.t_size):
-            #Appending the deploy binary values to the list
-            if self.deploy_bin[t].x == 1:
-                deploy_bin_values.append(self.deploy_bin[t].getAttr("x"))
-            else:
-                deploy_bin_values.append(0)
-    """
 
 
     def add_branching_constraints(self, node_label):

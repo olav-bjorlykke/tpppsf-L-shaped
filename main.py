@@ -20,33 +20,32 @@ from l_shaped_algorithm import LShapedAlgorithm
 
 
 
+def run_monolithic_model():
+    model = Model(sites.SITE_LIST)
+    model.solve_and_print_model()
+
+def run_b_and_p_gurobi():
+    bp = BranchAndPrice()
+    bp.branch_and_price(l_shaped=False)
+
+
+def run_b_and_p_l_shaped():
+    bp = BranchAndPrice()
+    bp.branch_and_price(l_shaped=True)
+
+
+
+
 
 
 if __name__ == '__main__':
-    site = sites.SITE_LIST[0]
-    node_label = NodeLabel(0, 0, 0)
-    #node_label.up_branching_indices[0].append(7)
-    dual_variables = CGDualVariablesFromMaster()
-    dual_variables.u_MAB[13][0] = 2.331633
-    dual_variables.u_MAB[12][1] = 5.921953
-    dual_variables.u_MAB[35][0] = 2.75
-    dual_variables.u_MAB[38][1] = 3.2499
-    dual_variables.u_MAB[45][0] = 0.2
-    dual_variables.u_MAB[46][1] = 0.2
-    dual_variables.u_MAB[35][0] = 2.75
-    dual_variables.u_MAB[58][1] = 0.1
-    dual_variables.u_MAB[3][0] = 2.75
-    dual_variables.u_MAB[5][1] = 5.1
+    if configs.ALGORITHM == 0:
+        run_b_and_p_l_shaped()
 
-    algo = LShapedAlgorithm(site, 0, node_label=node_label)
-    algo.solve(dual_variables)
-    column = algo.get_column_object(iteration=1)
-    column.write_to_file()
+    elif configs.ALGORITHM == 1:
+        run_b_and_p_gurobi()
 
-    mon_model = Model(site)
-    mon_model.solve_as_sub_problem(dual_variables, up_branching_indices=node_label.up_branching_indices[0])
-    column2 = mon_model.get_column_object(iteration=100)
-    column2.write_to_file()
-
+    else:
+        run_monolithic_model()
 
 

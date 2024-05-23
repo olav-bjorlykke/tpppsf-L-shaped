@@ -8,16 +8,22 @@ def set_scenarios():
     num_scenarios = int(input("Set the number of scenarios 1, 2, 5 or 10: "))
     return num_scenarios
 
+def set_algorithm():
+    algorithm = int(input(f"SET ALGORITHM - 0 = {ALGORITHMS_LIST[0]}, 1 = {ALGORITHMS_LIST[1]}, 2 = {ALGORITHMS_LIST[2]}: "))
+    return algorithm
 
+
+ALGORITHMS_LIST = ["B&P w L-SHAPED", "B&P w GUROBI", "MONOLITHIC MODEL"]
 INSTANCES = ["SMALL", "MEDIUM", "LARGE", "TEST"]
 INSTANCE = INSTANCES[set_instance()]
 NUM_SCENARIOS = set_scenarios()
-OUTPUT_DIR = f"./output/instance_{INSTANCE}_scenario_{NUM_SCENARIOS}/"
+ALGORITHM = set_algorithm()
+OUTPUT_DIR = f"./output/instance_{INSTANCE}_scenario_{NUM_SCENARIOS}_{ALGORITHMS_LIST[ALGORITHM].strip()}/"
 LOG_DIR = f"{OUTPUT_DIR}logs/"
 NUM_SMOLT_TYPES = 1
 
 
-print(f"Running {NUM_SCENARIOS} scenarios and {INSTANCE} instance")
+print(f"Running {NUM_SCENARIOS} scenarios and {INSTANCE} instance with algorithm {ALGORITHMS_LIST[ALGORITHM]}.")
 
 if NUM_SCENARIOS == 1:
     SCENARIOS_VARIATIONS = [1.0]

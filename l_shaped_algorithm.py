@@ -47,14 +47,14 @@ class LShapedAlgorithm:
             for s in range(configs.NUM_SCENARIOS):
                 subproblems[s].update_model(new_master_problem_solution)
                 subproblems[s].solve()
-                subproblems[s].model.write(f"subsub{s}.lp")
+                #subproblems[s].model.write(f"subsub{s}.lp")
                 if subproblems[s].model.status != GRB.OPTIMAL:
                     subproblems[s].model.computeIIS()
                     subproblems[s].model.write(f"subsub{s}.ilp")
 
 
                 self.ls_logger.info(f"{iteration_counter} Sub: {s}: Objective: {subproblems[s].model.objVal}")
-                subproblems[s].model.write(f"subsub{s}.lp")
+                #subproblems[s].model.write(f"subsub{s}.lp")
 
                 #Fetch dual variables from sub-problem, and write to list so they can be passed to the master problem
                 dual_variables[s] = subproblems[s].get_dual_values()
@@ -65,14 +65,14 @@ class LShapedAlgorithm:
             self.ls_logger.info(f"{iteration_counter} master:{self.master.model.objVal}")
             new_master_problem_solution = self.master.get_variable_values()
             #Log the objective value
-            self.write_obj_value_to_file(self.master, iteration=iteration_counter)
+            #self.write_obj_value_to_file(self.master, iteration=iteration_counter)
 
 
         #Once the L-shaped terminates, we solve it as a MIP to generate an integer feasible solution
         for s in range(configs.NUM_SCENARIOS):
             subproblems[s].update_model_to_mip(new_master_problem_solution)
             subproblems[s].solve()
-            subproblems[s].model.write(f"subsub_mip{s}.lp")
+            #subproblems[s].model.write(f"subsub_mip{s}.lp")
             if subproblems[s].model.status != GRB.OPTIMAL:
                 subproblems[s].model.computeIIS()
                 subproblems[s].model.write(f"subsub{s}_mip.ilp")
@@ -96,19 +96,19 @@ class LShapedAlgorithm:
             deploy_period_variables = DeployPeriodVariables()
             for f in range(self.master.f_size):
                 for t in range(self.master.t_size):
-                    deploy_period_variables.y[f][t] = round(self.master.y[f, t].x, 2)
-                    deploy_period_variables.deploy_type_bin[f][t] = round(self.master.deploy_type_bin[f, t].x, 2)
+                    deploy_period_variables.y[f][t] = round(self.master.y[f, t].x, 5)
+                    deploy_period_variables.deploy_type_bin[f][t] = round(self.master.deploy_type_bin[f, t].x, 5)
                     for s, sub in enumerate(self.subproblems):
-                        deploy_period_variables.w[f][t][s] = round(sub.w[f, t_hat, t].x, 2)
+                        deploy_period_variables.w[f][t][s] = round(sub.w[f, t_hat, t].x, 5)
                 for t in range(self.master.t_size +1):
                     for s, sub in enumerate(self.subproblems):
-                        deploy_period_variables.x[f][t][s] = round(sub.x[f,t_hat,t].x, 2)
+                        deploy_period_variables.x[f][t][s] = round(sub.x[f,t_hat,t].x, 5)
             for t in range(self.master.t_size):
-                deploy_period_variables.deploy_bin[t] = round(self.master.deploy_bin[t].x,2)
+                deploy_period_variables.deploy_bin[t] = round(self.master.deploy_bin[t].x,5)
                 for s, sub in enumerate(self.subproblems):
-                    deploy_period_variables.employ_bin[t][s] = round(sub.employ_bin[t].x,2)
-                    deploy_period_variables.employ_bin_granular[t][s] = round(sub.employ_bin_granular[t_hat, t].x,2)
-                    deploy_period_variables.harvest_bin[t][s] = round(sub.harvest_bin[t].x,2)
+                    deploy_period_variables.employ_bin[t][s] = round(sub.employ_bin[t].x,5)
+                    deploy_period_variables.employ_bin_granular[t][s] = round(sub.employ_bin_granular[t_hat, t].x,5)
+                    deploy_period_variables.harvest_bin[t][s] = round(sub.harvest_bin[t].x,5)
             column.production_schedules[t_hat] = deploy_period_variables
         return column
 
@@ -127,11 +127,5 @@ class LShapedAlgorithm:
 
 
 
-if __name__ == "__main__":
-    ls = LShapedAlgorithm(sites.site_1, 0, CGDualVariablesFromMaster(), NodeLabel(3, 2, 1))
-    ls.solve()
-    column = ls.get_column_object(0)
-    column.write_to_file()
-    print(ls.get_column_object(0))
 
 
