@@ -141,10 +141,10 @@ medium_sites_list = [site_3, site_4, site_6, site_7, site_8,
                 site_9, site_10, site_15]
 
 #Defining the list containing 3 sites
-short_sites_list = [site_4, site_6, site_15]
+short_sites_list = [site_4, site_9, site_15]
 
 #Defining test instance with 2 sites
-test_sites_list = [site_4]
+test_sites_list = [site_4, site_15]
 
 #Creating lists of subproblem objects corresponding to the lists of sites above
 sub_problem_list = [Model(site_objects=site) for site in large_sites_list]
@@ -154,7 +154,7 @@ test_sub_problem_list = [Model(site_objects=site) for site in test_sites_list]
 
 #Declaring which variables to set to one in the first node in the branch and price search tree.
 #All sites with initial biomass have their deploy variable for period 0 set to be 1
-test_node_init_list = [[0,0]]
+test_node_init_list = [[1,0]]
 short_node_init_list = [[2,0]]
 medium_node_init_list = [[0,0],[4,0],[6,0],[7,0]]
 long_node_init_list = [[0,0], [2,0], [4,0], [7,0], [9,0],[10,0], [11,0], [14,0]]
