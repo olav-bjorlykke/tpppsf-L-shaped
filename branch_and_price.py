@@ -7,6 +7,7 @@ import copy
 from gurobipy import GRB # type: ignore
 import logging
 from l_shaped_algorithm import LShapedAlgorithm
+from time import perf_counter
 
 class BranchAndPrice:
     def __init__(self):
@@ -29,6 +30,7 @@ class BranchAndPrice:
 
         current_node = root
         while q:
+            node_start = perf_counter()
             if q[0].level > current_node.level: self.upper_bound = self.get_upper_bounds(solved_nodes, current_node.level)
             current_node = q.pop(0)
             feasible = False
@@ -57,7 +59,8 @@ class BranchAndPrice:
                 current_node.LP_solution = lp_solution
                 current_node.MIP_solution = mip_solution
                 solved_nodes.append(current_node)
-                self.bp_logger.info(f"PRUNED - Node: {current_node.number} / iteration {self.master.iterations_k} / up_branching: {current_node.up_branching_indices} / down_branching: {current_node.down_branching_indices} / parent: {current_node.parent}")
+                node_end = perf_counter()
+                self.bp_logger.info(f"PRUNED - Node: {current_node.number} / iteration {self.master.iterations_k} / up_branching: {current_node.up_branching_indices} / down_branching: {current_node.down_branching_indices} / parent: {current_node.parent} / time in node : {node_end - node_start}")
                 continue
             if integer_feasible: #Pruning criteria 3
                 #If the LP solution is integer feasible -> prune!
@@ -65,9 +68,10 @@ class BranchAndPrice:
                 current_node.MIP_solution = lp_solution
                 current_node.integer_feasible = True
                 solved_nodes.append(current_node)
+                node_end = perf_counter()
                 if lp_solution > self.lower_bound:
                     self.lower_bound = lp_solution
-                self.bp_logger.info(f"PRUNED - Node: {current_node.number} / iteration {self.master.iterations_k} / up_branching: {current_node.up_branching_indices} / down_branching: {current_node.down_branching_indices} / parent: {current_node.parent} / lp_solution:{current_node.LP_solution} / mip_solution:{current_node.MIP_solution} / level:{current_node.level} / ub:{self.upper_bound} / lb:{self.lower_bound} / gap:{100 * (self.upper_bound - self.lower_bound)/self.upper_bound}%")
+                self.bp_logger.info(f"PRUNED - Node: {current_node.number} / iteration {self.master.iterations_k} / up_branching: {current_node.up_branching_indices} / down_branching: {current_node.down_branching_indices} / parent: {current_node.parent} / lp_solution:{current_node.LP_solution} / mip_solution:{current_node.MIP_solution} / level:{current_node.level} / ub:{self.upper_bound} / lb:{self.lower_bound} / gap:{100 * (self.upper_bound - self.lower_bound)/self.upper_bound}% / time in node : {node_end - node_start}")
                 continue
 
             #Setting the variables in the NodeLabel object
@@ -84,7 +88,8 @@ class BranchAndPrice:
             #Deciding which variable to branch on
                         # Returns a list with [location, index] for the branching variable
             branched_indexes.append(branching_variable)
-            self.bp_logger.info(f"Node: {current_node.number} / iteration {self.master.iterations_k} / up_branching: {current_node.up_branching_indices} / down_branching: {current_node.down_branching_indices} / parent: {current_node.parent} / lp_solution:{current_node.LP_solution} / mip_solution:{current_node.MIP_solution} / level:{current_node.level} / ub:{self.upper_bound} / lb:{self.lower_bound} / gap:{100 * (self.upper_bound - self.lower_bound)/self.upper_bound}%")
+            node_end = perf_counter()
+            self.bp_logger.info(f"Node: {current_node.number} / iteration {self.master.iterations_k} / up_branching: {current_node.up_branching_indices} / down_branching: {current_node.down_branching_indices} / parent: {current_node.parent} / lp_solution:{current_node.LP_solution} / mip_solution:{current_node.MIP_solution} / level:{current_node.level} / ub:{self.upper_bound} / lb:{self.lower_bound} / gap:{100 * (self.upper_bound - self.lower_bound)/self.upper_bound}% / time in node : {node_end - node_start}")
             #Book keeping to store the branching index
             new_up_branching_indicies = copy.deepcopy(current_node.up_branching_indices)
             new_down_branching_indicies = copy.deepcopy(current_node.down_branching_indices)
