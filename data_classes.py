@@ -19,7 +19,7 @@ class LShapedMasterProblemVariables:
         writer.close()
 
 @dataclass
-class LShapedSubProblemDualVariables:
+class LShapedSubProblemDualVariables: #TODO: Add rho from employ bin granular upper bound
     rho_1: list[float] # index order t. Also needs s as scenario index
     rho_2: list[list[float]] # index order f, t. Also needs s as scenario index
     rho_3: list[float] # index order t. Also needs s as scenario index
