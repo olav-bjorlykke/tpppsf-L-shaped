@@ -60,7 +60,8 @@ class Model:
     """
     def solve_and_print_model(self):
         self.model = gp.Model(f"Single site solution")
-        self.model.setParam('OutputFlag', 0)
+        self.model.setParam("LogFile", f"{configs.OUTPUT_DIR}monolithic_log")
+        #self.model.setParam('OutputFlag', 0)
 
         #Declaing variables
         self.declare_variables()
@@ -81,8 +82,6 @@ class Model:
         self.add_end_of_horizon_constraint()
         self.add_employ_bin_forcing_constraints()
         self.add_x_forcing_constraint()
-        self.add_up_branching_constraints()
-        self.add_down_branching_constraints()
         self.add_valid_inequality()
 
         #Running gurobi to optimize model
