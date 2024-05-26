@@ -63,10 +63,15 @@ else:
 if not os.path.exists(OUTPUT_DIR):
     # Create the directory
     os.makedirs(OUTPUT_DIR)
-    os.makedirs(LOG_DIR)
     print(f"Directory created: {OUTPUT_DIR}")
 else:
     print(f"Directory already exists: {OUTPUT_DIR}")
+
+if not os.path.exists(LOG_DIR):
+    os.makedirs(LOG_DIR)
+else:
+    print(f"Directory already exists: {LOG_DIR}")
+
 
 
 
