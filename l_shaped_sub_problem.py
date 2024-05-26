@@ -296,7 +296,6 @@ class LShapedSubProblem(Model):
             for t in range(t_hat, min(t_hat + parameters.max_periods_deployed, self.t_size +1))
         ), name="MAB_constraints"
         )
-
     def add_MAB_requirement_constraint_lp(self):
         self.model.addConstrs((
             gp.quicksum(self.x[f, t_hat, t] for f in range(self.f_size)) - self.z_slack_2[t_hat,t] <= self.site.MAB_capacity * 0.9999
