@@ -128,7 +128,7 @@ class BranchAndPrice:
 
         previous_dual_variables = CGDualVariablesFromMaster(u_EOH=[1 for _ in range(configs.NUM_SCENARIOS)])
         dual_variables = CGDualVariablesFromMaster()
-        while previous_dual_variables != dual_variables or self.master.iterations_k < 5:
+        while previous_dual_variables != dual_variables or self.master.iterations_k < 8:
             previous_dual_variables = dual_variables
             for i, sub in enumerate(sub_problems):
                 sub.solve_as_sub_problem(dual_variables, up_branching_indices=node_label.up_branching_indices[i],
@@ -148,7 +148,7 @@ class BranchAndPrice:
             self.master.solve()
             #self.master.model.write(f"master_{self.master.iterations_k}.lp")
             #self.master.model.write(f"master_model_iteration_{self.master.iterations_k}.lp")
-            if self.master.model.status != GRB.OPTIMAL:     # To prevent errors, handled by pruning in B&P
+            if self.master.model.status == GRB.INF_OR_UNBD:     # To prevent errors, handled by pruning in B&P
                 self.master_logger.info(f"{self.master.iterations_k}: INFEASIBLE!")
                 self.master.iterations_k -= 1
                 return False
@@ -166,7 +166,7 @@ class BranchAndPrice:
         dual_variables = CGDualVariablesFromMaster()
         sub_problems = [LShapedAlgorithm(sites.SITE_LIST[i], i, node_label) for i in range(len(sites.SITE_LIST))]
         
-        while previous_dual_variables != dual_variables or self.master.iterations_k < 5:
+        while previous_dual_variables != dual_variables or self.master.iterations_k < 8:
             previous_dual_variables = dual_variables
             for i, sub in enumerate(sub_problems):
                 self.general_logger.info(f"## solved subproblem {i}, iteration {self.master.iterations_k} ")
@@ -190,19 +190,19 @@ class BranchAndPrice:
 
     def generate_initial_columns(self):
         initial = Model(sites.SITE_LIST)
-        initial_columns = initial.create_zero_column(0)
-        initial_columns2 = initial.create_initial_columns(1)
+        #initial_columns = initial.create_zero_column(0)
+        initial_columns2 = initial.create_initial_columns(0)
 
 
-        for column in initial_columns:
-            self.master.columns[(column.site, column.iteration_k)] = column
+        #for column in initial_columns:
+        #    self.master.columns[(column.site, column.iteration_k)] = column
 
 
         for column in initial_columns2:
             self.master.columns[(column.site, column.iteration_k)] = column
 
         self.master.initialize_model()
-        self.master.iterations_k = 2
+        self.master.iterations_k = 1
 
     def get_upper_bounds(self, solved_nodes, level):
         lvl_upper_bound = 0
