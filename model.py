@@ -61,6 +61,7 @@ class Model:
     def solve_and_print_model(self):
         self.model = gp.Model(f"Single site solution")
         self.model.setParam("LogFile", f"{configs.OUTPUT_DIR}monolithic_log")
+        self.model.setParam(GRB.Param.SolutionLimit, 5)
         #self.model.setParam('OutputFlag', 0)
 
         #Declaing variables
@@ -88,7 +89,7 @@ class Model:
         self.model.optimize()
 
         #Printing solution
-        if self.model.status == GRB.OPTIMAL:
+        if True:
             self.print_solution_to_excel()
             self.plot_solutions_x_values_per_site()
             self.plot_solutions_x_values_aggregated()
@@ -337,7 +338,6 @@ class Model:
                 )
                 for s in range(self.s_size)
             )
-            - dual_variables.v_l[location]
             ,GRB.MAXIMIZE
         )
 
