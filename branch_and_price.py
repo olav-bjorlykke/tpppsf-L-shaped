@@ -170,12 +170,16 @@ class BranchAndPrice:
             previous_dual_variables = dual_variables
             for i, sub in enumerate(sub_problems):
                 self.general_logger.info(f"## solved subproblem {i}, iteration {self.master.iterations_k} ")
-                sub.solve(dual_variables)
+                feasible = sub.solve(dual_variables)
+                if not feasible:
+                    return False
                 column = sub.get_column_object(iteration=self.master.iterations_k)
                 column.site = i
-                #column.write_to_file()
+                column.write_to_file()
                 self.master.columns[(i, self.master.iterations_k)] = column
                 self.sub_logger.info(f"iteration {self.master.iterations_k} / site {i}:{sub.master.model.objVal}") #TODO: this does not account for solving the subsubs as MIPs
+                self.sub_logger.info(
+                    f"Reduced cost of column iteration {self.master.iterations_k}, site{i}: {column.calculate_reduced_cost(dual_variables)}")
             self.master.update_model(node_label) 
             self.master.solve()                  
             if self.master.model.status != GRB.OPTIMAL:     # To prevent errors, handled by pruning in B&P
@@ -184,25 +188,25 @@ class BranchAndPrice:
                 return False
             self.master_logger.info(f"{self.master.iterations_k}: objective = {self.master.model.objVal}")                    
             dual_variables = self.master.get_dual_variables()
-            #dual_variables.write_to_file()
-            #dual_variables.write_to_file()
+            dual_variables.write_to_file()
+
         return True
 
     def generate_initial_columns(self):
         initial = Model(sites.SITE_LIST)
         initial_columns = initial.create_zero_column(0)
-        initial_columns2 = initial.create_initial_columns(1)
+        #initial_columns2 = initial.create_initial_columns(1)
 
 
         for column in initial_columns:
             self.master.columns[(column.site, column.iteration_k)] = column
 
 
-        for column in initial_columns2:
-            self.master.columns[(column.site, column.iteration_k)] = column
+        #for column in initial_columns2:
+        #    self.master.columns[(column.site, column.iteration_k)] = column
 
         self.master.initialize_model()
-        self.master.iterations_k = 2
+        self.master.iterations_k = 1
 
     def get_upper_bounds(self, solved_nodes, level):
         lvl_upper_bound = 0

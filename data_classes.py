@@ -106,6 +106,22 @@ class CGColumn:
         df_sorted = df_reordered.sort_index(level=["Scenario", "Smolt Type", "Deploy Period", "Period"], ascending=[True,True,True,True])
         df_sorted.to_excel(f"{configs.OUTPUT_DIR}column_variable_values_site{self.site}_iteration{self.iteration_k}.xlsx")
 
+    def calculate_reduced_cost(self, cg_dual_variables: CGDualVariablesFromMaster):
+        objective = 0
+        for deploy_period, deploy_period_variables in self.production_schedules.items():
+            for f in range(configs.NUM_SMOLT_TYPES):
+                for t in range(parameters.number_periods):
+                    for s in range(configs.NUM_SCENARIOS):
+                        objective += deploy_period_variables.w[f][t][s] * configs.SCENARIO_PROBABILITIES[s]
+                        objective -= deploy_period_variables.x[f][t][s] * cg_dual_variables.u_MAB[t][s]
+
+                for s in range(configs.NUM_SCENARIOS):
+                    objective -= deploy_period_variables.x[f][60][s] * cg_dual_variables.u_EOH[s]
+
+        objective -= cg_dual_variables.v_l[self.site]
+        return objective
+
+
 @dataclass
 class NodeLabel:
     number: int

@@ -1,0 +1,20 @@
+\ Model L-shaped master problem model_copy
+\ LP format - for model browsing. Use MPS format to capture full model detail.
+Maximize
+ 
+Subject To
+ R480: 60 deploy_bin[0] + deploy_bin[1] + deploy_bin[2] + deploy_bin[3]
+   + deploy_bin[4] + deploy_bin[5] + deploy_bin[6] + deploy_bin[7]
+   + deploy_bin[8] + deploy_bin[9] + deploy_bin[10] + deploy_bin[11]
+   + deploy_bin[12] + deploy_bin[13] + deploy_bin[14] + deploy_bin[15]
+   + deploy_bin[16] + deploy_bin[17] + deploy_bin[18] + deploy_bin[19]
+   <= 60
+ branch-up: deploy_bin[0] = 1
+ branch-up: deploy_bin[19] = 1
+Bounds
+Binaries
+ deploy_bin[0] deploy_bin[1] deploy_bin[2] deploy_bin[3] deploy_bin[4]
+ deploy_bin[5] deploy_bin[6] deploy_bin[7] deploy_bin[8] deploy_bin[9]
+ deploy_bin[10] deploy_bin[11] deploy_bin[12] deploy_bin[13] deploy_bin[14]
+ deploy_bin[15] deploy_bin[16] deploy_bin[17] deploy_bin[18] deploy_bin[19]
+End

@@ -24,6 +24,7 @@ class LShapedAlgorithm:
         if self.master.model.status != GRB.OPTIMAL:
             self.master.model.computeIIS()
             self.master.model.write("L-shaped-master-problem.ilp")
+            return False
 
         #Write initial objective value to file
         #self.write_obj_value_to_file(self.master, iteration=iteration_counter)
@@ -33,7 +34,7 @@ class LShapedAlgorithm:
         # new master problem solution set to be the solution with no cuts, this is an Lshaped data class object
         new_master_problem_solution = self.master.get_variable_values()
         #Initializes a list of L-shaped sub-problems
-        subproblems = [LShapedSubProblem(s, self.site, self.l, new_master_problem_solution, cg_dual_variables) for s in range(configs.NUM_SCENARIOS)]
+        subproblems = [LShapedSubProblem(scenario=s, site=self.site,site_index= self.l,fixed_variables= new_master_problem_solution, cg_dual_variables=cg_dual_variables) for s in range(configs.NUM_SCENARIOS)]
         #Initializes an empyt list for dual variable tracking
         dual_variables = [None for _ in range(configs.NUM_SCENARIOS)]
         for s in range(configs.NUM_SCENARIOS):
@@ -82,6 +83,7 @@ class LShapedAlgorithm:
         new_master_problem_solution.write_to_file()
         
         self.subproblems = subproblems
+        return True
 
 
     def write_obj_value_to_file(self, master_problem, iteration):
