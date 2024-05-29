@@ -3,13 +3,14 @@ from gurobipy import GRB
 import initialization.parameters as parameters
 import initialization.configs as configs
 import initialization.input_data as input_data
-from data_classes import LShapedMasterProblemVariables
+from data_classes import LShapedMasterProblemVariables, CGDualVariablesFromMaster
 
 class LShapedMasterProblem():
     def __init__(self, 
                  site, 
                  site_index,
-                 input_data = input_data.InputData()
+                 input_data = input_data.InputData(),
+                 cg_dual_variables = CGDualVariablesFromMaster()
                  ):
         self.input_data = input_data
         self.site = site
@@ -20,10 +21,11 @@ class LShapedMasterProblem():
         self.t_size = parameters.number_periods
         self.growth_sets = self.site.growth_sets
         self.smolt_weights = parameters.smolt_weights
+        self.cg_dual_variables = cg_dual_variables
 
 
-
-    def initialize_model(self, node_label):
+    def initialize_model(self, node_label, cg_dual_variables):
+        self.cg_dual_variables = cg_dual_variables
         self.model = gp.Model(f"L-shaped master problem model")
         self.model.setParam("OutputFlag", 0)
         self.model.setParam("MIPFocus", 3)
@@ -58,7 +60,7 @@ class LShapedMasterProblem():
         self.model.setObjective(
             gp.quicksum(
                 self.theta[s] for s in range(self.s_size)
-            )
+            ) - self.cg_dual_variables.v_l[self.l]
             ,GRB.MAXIMIZE
         )
     
@@ -131,7 +133,7 @@ class LShapedMasterProblem():
 
     def add_optimality_cuts(self, dual_variables):
         self.model.addConstrs(
-            self.theta[s] <= configs.SCENARIO_PROBABILITIES[s] *
+            self.theta[s] <=
             (
                 gp.quicksum(dual_variables[s].rho_1[t] * (1 - self.deploy_bin[t]) * parameters.min_fallowing_periods for t in range(self.t_size-parameters.min_fallowing_periods))
                 + 
@@ -146,6 +148,8 @@ class LShapedMasterProblem():
                 gp.quicksum(dual_variables[s].rho_6[t] for t in range(self.t_size))
                 + 
                 gp.quicksum(dual_variables[s].rho_7[t] for t in range(self.t_size))
+                +
+                gp.quicksum(dual_variables[s].rho_8[t_hat][t] for t in range(self.t_size)for t_hat in range(self.t_size))
             )
             for s in range(self.s_size)
         )

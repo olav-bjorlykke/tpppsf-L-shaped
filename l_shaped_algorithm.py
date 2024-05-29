@@ -16,7 +16,7 @@ class LShapedAlgorithm:
         self.set_up_logging()
 
     def solve(self, cg_dual_variables):
-        self.master.initialize_model(self.node_label)                                                                    #Create the gurobi model object within the master-problem class
+        self.master.initialize_model(self.node_label, cg_dual_variables)                                                                    #Create the gurobi model object within the master-problem class
         #Solve the master problem with no cuts
         self.master.solve()
         iteration_counter = 1

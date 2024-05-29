@@ -131,7 +131,7 @@ class LShapedSubProblem(Model):
         # These must be continous for us to be able to fetch the dual values out
         self.harvest_bin = self.model.addVars(self.t_size, vtype=GRB.BINARY, name="harvest_bin", lb=0)
         self.employ_bin = self.model.addVars(self.t_size, vtype=GRB.BINARY, name="Employ bin", lb=0)
-        self.employ_bin_granular = self.model.addVars(self.t_size, self.t_size, vtype=GRB.BINARY, name="Employ bin gran", lb=0, ub=1)
+        self.employ_bin_granular = self.model.addVars(self.t_size, self.t_size, vtype=GRB.BINARY, name="Employ bin gran", lb=0)
 
 
     """
@@ -157,7 +157,7 @@ class LShapedSubProblem(Model):
     def add_mip_objective(self):
         self.model.setObjective(
             gp.quicksum(
-                #configs.SCENARIO_PROBABILITIES[self.scenario] *
+                configs.SCENARIO_PROBABILITIES[self.scenario] *
                 gp.quicksum(self.w[f, t_hat, t]
                             for t in range(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat],
                                   min(t_hat + parameters.max_periods_deployed, self.t_size))
@@ -177,7 +177,7 @@ class LShapedSubProblem(Model):
         penalty_parameter = parameters.penalty_parameter_L_sub #This should not be very high -> It will lead to numeric instability
         self.model.setObjective(
             gp.quicksum(
-                #configs.SCENARIO_PROBABILITIES[self.scenario] *
+                configs.SCENARIO_PROBABILITIES[self.scenario] *
                 gp.quicksum(
                     self.w[f, t_hat, t] for t in range(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat],
                                     min(t_hat + parameters.max_periods_deployed, self.t_size))
@@ -310,6 +310,14 @@ class LShapedSubProblem(Model):
         self.model.addConstrs((
             self.employ_bin[t] <= 1 for t in range(self.t_size)), name="employ_bin_UB"
         )
+        self.model.addConstrs((
+            self.employ_bin_granular[t_hat, t] <= 1
+            for t in range(self.t_size)
+            for t_hat in range(self.t_size)
+        ), name="employ_bin_gran_UB"
+        )
+
+
     def add_w_forcing_constraint(self):
         self.model.addConstrs(
             # TODO:This is a forcing constraint that is not in the mathematical model, put it in the model somehow
@@ -356,6 +364,7 @@ class LShapedSubProblem(Model):
         rho_5 = []
         rho_6 = []
         rho_7 = []
+        rho_8 = []
         for t in range(parameters.min_fallowing_periods, self.t_size):
             rho_1.append(self.model.getConstrByName(f"fallowing_constriants_1[{t}]").getAttr("Pi"))
         for f in range(self.f_size):
@@ -371,7 +380,10 @@ class LShapedSubProblem(Model):
             rho_5.append([])
             for t in range(t_hat, min(t_hat + parameters.max_periods_deployed, self.t_size + 1)):
                 rho_5[t_hat].append(self.model.getConstrByName(f"MAB_constraints[{t_hat},{t}]").getAttr("Pi"))
-        return LShapedSubProblemDualVariables(rho_1, rho_2, rho_3, rho_4, rho_5, rho_6, rho_7)
+            rho_8.append([])
+            for t in range(self.t_size):
+                rho_8[t_hat].append(self.model.getConstrByName(f"employ_bin_gran_UB[{t_hat},{t}]").getAttr("Pi"))
+        return LShapedSubProblemDualVariables(rho_1, rho_2, rho_3, rho_4, rho_5, rho_6, rho_7, rho_8)
 
     def print_variable_values(self):
         f_list = []

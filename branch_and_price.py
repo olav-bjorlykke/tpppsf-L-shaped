@@ -190,19 +190,19 @@ class BranchAndPrice:
 
     def generate_initial_columns(self):
         initial = Model(sites.SITE_LIST)
-        #initial_columns = initial.create_zero_column(0)
-        initial_columns2 = initial.create_initial_columns(0)
+        initial_columns = initial.create_zero_column(0)
+        initial_columns2 = initial.create_initial_columns(1)
 
 
-        #for column in initial_columns:
-        #    self.master.columns[(column.site, column.iteration_k)] = column
+        for column in initial_columns:
+            self.master.columns[(column.site, column.iteration_k)] = column
 
 
         for column in initial_columns2:
             self.master.columns[(column.site, column.iteration_k)] = column
 
         self.master.initialize_model()
-        self.master.iterations_k = 1
+        self.master.iterations_k = 2
 
     def get_upper_bounds(self, solved_nodes, level):
         lvl_upper_bound = 0

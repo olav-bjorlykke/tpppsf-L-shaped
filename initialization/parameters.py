@@ -31,4 +31,5 @@ MAB_util_end = 0.3
 penalty_parameter_L_sub = 100000 #This should not be very hidh -> It will lead to numeric instability
 valid_ineqaulity_lshaped_master_bigM = 60 #This must be higher than the max possible release periods -> Never more than 60
 EOH_ratio_requirement = 0.8
+random_seed = 10
 
