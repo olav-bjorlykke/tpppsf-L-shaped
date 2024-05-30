@@ -368,24 +368,24 @@ class LShapedSubProblem(Model):
         rho_7 = []
         rho_8 = []
         for t in range(parameters.min_fallowing_periods, self.t_size):
-            rho_1.append(self.model.getConstrByName(f"fallowing_constriants_1[{t}]").getAttr("Pi"))
-            rho_4.append(self.model.getConstrByName(f"valid_inequality[{t}]").getAttr("Pi"))
+            rho_1.append(round(self.model.getConstrByName(f"fallowing_constriants_1[{t}]").getAttr("Pi"), 5))
+            rho_4.append(round(self.model.getConstrByName(f"valid_inequality[{t}]").getAttr("Pi"), 5))
         for f in range(self.f_size):
             rho_2.append([])
             for t in range(self.t_size):
-                rho_2[f].append(self.model.getConstrByName(f"biomass_development_constraints_1[{f},{t}]").getAttr("Pi"))
+                rho_2[f].append(round(self.model.getConstrByName(f"biomass_development_constraints_1[{f},{t}]").getAttr("Pi"), 5))
         for t in range(self.t_size - parameters.max_fallowing_periods):
-            rho_3.append(self.model.getConstrByName(f"inactivity_constraints[{t}]").getAttr("Pi"))
+            rho_3.append(round(self.model.getConstrByName(f"inactivity_constraints[{t}]").getAttr("Pi"), 5))
         for t in range(self.t_size):
-            rho_6.append(self.model.getConstrByName(f"harvest_bin_UB[{t}]").getAttr("Pi"))
-            rho_7.append(self.model.getConstrByName(f"employ_bin_UB[{t}]").getAttr("Pi"))
+            rho_6.append(round(self.model.getConstrByName(f"harvest_bin_UB[{t}]").getAttr("Pi"), 5))
+            rho_7.append(round(self.model.getConstrByName(f"employ_bin_UB[{t}]").getAttr("Pi"), 5))
         for t_hat in range(self.t_size):
             rho_5.append([])
             for t in range(t_hat, min(t_hat + parameters.max_periods_deployed, self.t_size + 1)):
-                rho_5[t_hat].append(self.model.getConstrByName(f"MAB_constraints[{t_hat},{t}]").getAttr("Pi"))
+                rho_5[t_hat].append(round(self.model.getConstrByName(f"MAB_constraints[{t_hat},{t}]").getAttr("Pi"), 5))
             rho_8.append([])
             for t in range(self.t_size):
-                rho_8[t_hat].append(self.model.getConstrByName(f"employ_bin_gran_UB[{t_hat},{t}]").getAttr("Pi"))
+                rho_8[t_hat].append(round(self.model.getConstrByName(f"employ_bin_gran_UB[{t_hat},{t}]").getAttr("Pi"), 5))
         return LShapedSubProblemDualVariables(rho_1, rho_2, rho_3, rho_4, rho_5, rho_6, rho_7, rho_8)
 
     def print_variable_values(self):

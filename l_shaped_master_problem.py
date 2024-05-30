@@ -31,6 +31,7 @@ class LShapedMasterProblem():
         self.model.setParam("MIPFocus", 3)
         self.model.setParam("NumericFocus", 3)
         self.model.setParam("IntegralityFocus", 1)
+        self.model.setParam("MIPGap", 10**(-5))
         self.declare_variables()
         self.set_objective()
         self.add_initial_condition_constraint()
