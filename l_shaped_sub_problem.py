@@ -284,17 +284,19 @@ class LShapedSubProblem(Model):
             for t_hat in range(self.t_size)
             for t in range(t_hat)
         )
+        
     def add_valid_inequality_sub_problem(self):
-        self.model.addConstrs(
+        self.model.addConstrs((
             0.5 * (self.employ_bin[t - 1] + self.employ_bin[t - 2]) + self.fixed_variables.deploy_bin[t] <= 1
-            for t in range(2, self.t_size)
-        )
+            for t in range(parameters.min_fallowing_periods, self.t_size)
+        ), name="valid_inequality")
+
     def add_MAB_requirement_constraint(self):
         self.model.addConstrs((
             gp.quicksum(self.x[f, t_hat, t] for f in range(self.f_size)) - self.z_slack_2[t_hat,t] <= self.site.MAB_capacity
             for t_hat in range(self.t_size)
             for t in range(t_hat, min(t_hat + parameters.max_periods_deployed, self.t_size +1))
-        ), name="MAB_constraints"
+        ), name="MAB_constraints_mip"
         )
     def add_MAB_requirement_constraint_lp(self):
         self.model.addConstrs((
@@ -360,13 +362,14 @@ class LShapedSubProblem(Model):
         rho_1 = []
         rho_2 = []
         rho_3 = []
-        rho_4 = 0 # unsure if this dual is needed 
+        rho_4 = [] 
         rho_5 = []
         rho_6 = []
         rho_7 = []
         rho_8 = []
         for t in range(parameters.min_fallowing_periods, self.t_size):
             rho_1.append(self.model.getConstrByName(f"fallowing_constriants_1[{t}]").getAttr("Pi"))
+            rho_4.append(self.model.getConstrByName(f"valid_inequality[{t}]").getAttr("Pi"))
         for f in range(self.f_size):
             rho_2.append([])
             for t in range(self.t_size):

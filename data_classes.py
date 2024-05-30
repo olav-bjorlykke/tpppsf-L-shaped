@@ -23,7 +23,7 @@ class LShapedSubProblemDualVariables: #TODO: Add rho from employ bin granular up
     rho_1: list[float] # index order t. Also needs s as scenario index
     rho_2: list[list[float]] # index order f, t. Also needs s as scenario index
     rho_3: list[float] # index order t. Also needs s as scenario index
-    rho_4: float # Only needs scenario index s 
+    rho_4: list[float] # t 
     rho_5: list[list[float]] # index order t_hat, t. Also needs s as scenario index
     rho_6: list[float] # index order t. Also needs s as scenario index
     rho_7: list[float] # index order t. Also needs s as scenario index

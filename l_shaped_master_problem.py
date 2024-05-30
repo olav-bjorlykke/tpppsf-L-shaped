@@ -135,13 +135,13 @@ class LShapedMasterProblem():
         self.model.addConstrs(
             self.theta[s] <=
             (
-                gp.quicksum(dual_variables[s].rho_1[t] * (1 - self.deploy_bin[t]) * parameters.min_fallowing_periods for t in range(self.t_size-parameters.min_fallowing_periods))
+                gp.quicksum(dual_variables[s].rho_1[t-parameters.min_fallowing_periods] * (1 - self.deploy_bin[t]) * parameters.min_fallowing_periods for t in range(parameters.min_fallowing_periods, self.t_size))
                 + 
                 gp.quicksum(gp.quicksum(dual_variables[s].rho_2[f][t] * self.y[f, t] for f in range(self.f_size)) for t in range(self.t_size))
                 +
                 gp.quicksum(dual_variables[s].rho_3[t] for t in range(self.t_size - parameters.max_fallowing_periods))
                 +
-                dual_variables[s].rho_4
+                gp.quicksum(dual_variables[s].rho_4[t-parameters.min_fallowing_periods] * (1 - self.deploy_bin[t]) for t in range(parameters.min_fallowing_periods, self.t_size))
                 +
                 gp.quicksum(gp.quicksum(dual_variables[s].rho_5[t_hat][t] * self.site.MAB_capacity for t in range(min(t_hat + parameters.max_periods_deployed, self.t_size + 1)-t_hat)) for t_hat in range(self.t_size))
                 + 
