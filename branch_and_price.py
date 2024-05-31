@@ -8,6 +8,7 @@ from gurobipy import GRB # type: ignore
 import logging
 from l_shaped_algorithm import LShapedAlgorithm
 from time import perf_counter
+import multiprocessing
 
 class BranchAndPrice:
     def __init__(self):
@@ -192,6 +193,32 @@ class BranchAndPrice:
 
         return True
 
+    def column_generation_ls_parallel(self, node_label):
+        # Initializing sub problems
+        self.master.model.setParam('OutputFlag', 0)
+
+        previous_dual_variables = CGDualVariablesFromMaster(u_EOH=[1 for _ in range(configs.NUM_SCENARIOS)])
+        dual_variables = CGDualVariablesFromMaster()
+
+        while previous_dual_variables != dual_variables or self.master.iterations_k < 8:
+            previous_dual_variables = dual_variables
+            new_columns = self.run_sub_problems_in_parallel(dual_variables, node_label)
+            for column in new_columns:
+                self.master.columns[(column.site, self.master.iterations_k)] = column
+                self.sub_logger.info(f"iteration {self.master.iterations_k} / site {column.site}:{column.calculate_reduced_cost(dual_variables)}")  # TODO: this does not account for solving the subsubs as MIPs
+            self.master.update_model(node_label)
+            self.master.solve()
+            if self.master.model.status != GRB.OPTIMAL:  # To prevent errors, handled by pruning in B&P
+                self.master_logger.info(f"{self.master.iterations_k}: status: {self.master.model.status}")
+                self.master.iterations_k -= 1
+                return False
+            self.master_logger.info(f"{self.master.iterations_k}: objective = {self.master.model.objVal}")
+            dual_variables = self.master.get_dual_variables()
+            dual_variables.write_to_file()
+
+        return True
+        pass
+
     def generate_initial_columns(self):
         initial = Model(sites.SITE_LIST)
         initial_columns = initial.create_zero_column(0)
@@ -216,6 +243,29 @@ class BranchAndPrice:
 
         return lvl_upper_bound
 
+    def run_sub_problems_in_parallel(self, dual_variables, node_label):
+        processes = []
+        column_queue = multiprocessing.Queue()
+        feasible_queue = multiprocessing.Queue()
+
+        for i, site in enumerate(sites.SITE_LIST):
+            p = multiprocessing.Process(target=self.create_and_solve_sub_problem, args=(i, dual_variables, node_label, site, self.master.iterations_k, column_queue, feasible_queue))
+            processes.append(p)
+            p.start()
+
+        for p in processes:
+            p.join()
+
+        columns = [column_queue.get() for _ in processes]
+        return columns
+
+    def create_and_solve_sub_problem(self, i, dual_variables,node_label, site, iterations_k, column_queue, feasible_queue):
+        sub_problem = LShapedAlgorithm(site, i, node_label)
+        feasible = sub_problem.solve(dual_variables)
+        if not feasible:
+            feasible_queue.put(feasible)
+            return False
+        column_queue.put(sub_problem.get_column_object(iterations_k))
 
     def set_up_logging(self):
         path = configs.LOG_DIR

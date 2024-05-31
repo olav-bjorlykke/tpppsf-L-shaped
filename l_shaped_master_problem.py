@@ -194,11 +194,11 @@ class LShapedMasterProblem():
             for t in range(self.t_size):
                 #Appending the y and deploy variables to the 2-D list for the given smolt type and period
 
-                y_values[f].append(self.y[f, t].getAttr("x"))
-                deploy_type_bin_values[f].append(self.deploy_type_bin[f, t].getAttr("x"))
+                y_values[f].append(round(self.y[f, t].getAttr("x"), 1))
+                deploy_type_bin_values[f].append(round(self.deploy_type_bin[f, t].getAttr("x"), 1))
         for t in range(self.t_size):
             #Appending the deploy binary values to the list
-            deploy_bin_values.append(self.deploy_bin[t].getAttr("x"))
+            deploy_bin_values.append(round(self.deploy_bin[t].getAttr("x"),1))
         #Returns a data_class with the stores variables
         return LShapedMasterProblemVariables(self.l, y_values, deploy_bin_values, deploy_type_bin_values)
 
