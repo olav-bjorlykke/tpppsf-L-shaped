@@ -1,51 +1,36 @@
-import copy
-
 from model import Model
-import gurobipy as gp
-import pandas as pd
-from gurobipy import GRB
-import numpy as np
-import initialization.parameters
+from initialization.configs import Configs
 from initialization.input_data import InputData
-from initialization.site_class import Site
-import matplotlib.pyplot as plt
-import initialization.configs as configs
-import time
-from cg_master_problem import CGMasterProblem
-import initialization.sites as sites
-import initialization.parameters as parameters
+from initialization.sites import Sites
 from branch_and_price import BranchAndPrice
-from data_classes import NodeLabel, CGDualVariablesFromMaster
-from l_shaped_algorithm import LShapedAlgorithm
 
 
 
-def run_monolithic_model():
-    model = Model(sites.SITE_LIST)
+def run_monolithic_model(configs):
+    sites = Sites(configs)
+    model = Model(sites.SITE_LIST, configs)
     model.solve_and_print_model()
 
-def run_b_and_p_gurobi():
-    bp = BranchAndPrice()
+def run_b_and_p_gurobi(configs, input_data):
+    bp = BranchAndPrice(configs, input_data)
     bp.branch_and_price(l_shaped=False)
 
 
-def run_b_and_p_l_shaped():
-    bp = BranchAndPrice()
+def run_b_and_p_l_shaped(configs, input_data):
+    bp = BranchAndPrice(configs, input_data)
     bp.branch_and_price(l_shaped=True)
 
 
-
-
-
-
 if __name__ == '__main__':
+    configs = Configs()
+    input_data = InputData(configs)
     if configs.ALGORITHM == 0:
-        run_b_and_p_l_shaped()
+        run_b_and_p_l_shaped(configs, input_data)
 
     elif configs.ALGORITHM == 1:
-        run_b_and_p_gurobi()
+        run_b_and_p_gurobi(configs, input_data)
 
     else:
-        run_monolithic_model()
+        run_monolithic_model(configs)
 
 

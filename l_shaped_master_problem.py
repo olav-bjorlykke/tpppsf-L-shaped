@@ -1,17 +1,17 @@
 import gurobipy as gp
 from gurobipy import GRB
 import initialization.parameters as parameters
-import initialization.configs as configs
-import initialization.input_data as input_data
 from data_classes import LShapedMasterProblemVariables, CGDualVariablesFromMaster
 
 class LShapedMasterProblem():
     def __init__(self, 
                  site, 
                  site_index,
-                 input_data = input_data.InputData(),
-                 cg_dual_variables = CGDualVariablesFromMaster()
+                 configs,
+                 input_data
                  ):
+        self.configs = configs
+        cg_dual_variables = CGDualVariablesFromMaster(configs)
         self.input_data = input_data
         self.site = site
         self.l = site_index
@@ -203,14 +203,12 @@ class LShapedMasterProblem():
         return LShapedMasterProblemVariables(self.l, y_values, deploy_bin_values, deploy_type_bin_values)
 
 
-
     def add_branching_constraints(self, node_label):
         for index in node_label.up_branching_indices[self.l]:
             self.model.addConstr(
                 self.deploy_bin[index] == 1
                 , name="branch-up"
             )
-        
        
         for index in node_label.down_branching_indices[self.l]:
             self.model.addConstr(
@@ -220,7 +218,7 @@ class LShapedMasterProblem():
 
     def print_variable_values(self):
         variables = self.get_variable_values()
-        variables.write_to_file()
+        variables.write_to_file(self.configs)
 
     def get_deploy_period_list(self):
         deploy_period_list = [t for t in range(0, self.t_size) if self.deploy_bin[t].x == 1]

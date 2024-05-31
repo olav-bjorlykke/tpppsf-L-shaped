@@ -1,9 +1,8 @@
-import dataclasses
 from dataclasses import dataclass, field
 from typing import Dict
 import pandas as pd
-import initialization.configs as configs
 import initialization.parameters as parameters
+
 
 @dataclass
 class LShapedMasterProblemVariables:
@@ -12,14 +11,14 @@ class LShapedMasterProblemVariables:
     deploy_bin: list[int] # index order t. same unique l to be added in all subproblems from a master problem
     deploy_type_bin: list[list[int]] # index order f, t. same unique l to be added in all subproblems from a master problem
 
-    def write_to_file(self):
+    def write_to_file(self, configs):
         writer = pd.ExcelWriter(f"{configs.OUTPUT_DIR}master_variables_site{self.l}.xlsx")
         pd.DataFrame(self.y).to_excel(writer, index=False, sheet_name="deploy_amounts")
         pd.Series(self.deploy_bin).to_excel(writer, index=False, sheet_name="deploy_bins")
         writer.close()
 
 @dataclass
-class LShapedSubProblemDualVariables: #TODO: Add rho from employ bin granular upper bound
+class LShapedSubProblemDualVariables:
     rho_1: list[float] # index order t. Also needs s as scenario index
     rho_2: list[list[float]] # index order f, t. Also needs s as scenario index
     rho_3: list[float] # index order t. Also needs s as scenario index
@@ -31,13 +30,15 @@ class LShapedSubProblemDualVariables: #TODO: Add rho from employ bin granular up
 
 @dataclass
 class CGDualVariablesFromMaster:
-    iteration: int = field(default=0)
-    v_l: list[float] = field(default_factory=lambda: [0.0 for l in range(configs.NUM_LOCATIONS)])
-    u_MAB: list[list[float]] = field(default_factory=lambda: [[0.0 for s in range(configs.NUM_SCENARIOS)]for t in range(parameters.number_periods + 1)]) #t, s
-    u_EOH: list[float] = field(default_factory=lambda: [0.0 for s in range(configs.NUM_SCENARIOS)])#s
+    def __init__(self, configs):
+        self.configs = configs
+        self.iteration: int = 0
+        self.v_l: list[float] = [0.0 for l in range(configs.NUM_LOCATIONS)]
+        self.u_MAB: list[list[float]] = [[0.0 for s in range(configs.NUM_SCENARIOS)]for t in range(parameters.number_periods + 1)] #t, s
+        self.u_EOH: list[float] = [0.0 for s in range(configs.NUM_SCENARIOS)]#s
 
     def write_to_file(self):
-        writer = pd.ExcelWriter(f"{configs.OUTPUT_DIR}dual_variables_iteration{self.iteration}.xlsx")
+        writer = pd.ExcelWriter(f"{self.configs.OUTPUT_DIR}dual_variables_iteration{self.iteration}.xlsx")
         pd.DataFrame(self.u_MAB).to_excel(writer, index=False, sheet_name="u_MAB")
         pd.Series(self.u_EOH).to_excel(writer, index=False, sheet_name="u_EOH")
         pd.Series(self.v_l).to_excel(writer, index=False, sheet_name="v_l")
@@ -45,13 +46,13 @@ class CGDualVariablesFromMaster:
     
     def __eq__(self, other): 
         for t in range(parameters.number_periods + 1):
-            for s in range(configs.NUM_SCENARIOS):
+            for s in range(self.configs.NUM_SCENARIOS):
                 if self.u_MAB[t][s] != other.u_MAB[t][s]:
                     return False
-        for s in range(configs.NUM_SCENARIOS):
+        for s in range(self.configs.NUM_SCENARIOS):
             if self.u_EOH[s] != other.u_EOH[s]:
                 return False
-        for l in range(configs.NUM_LOCATIONS):
+        for l in range(self.configs.NUM_LOCATIONS):
             if self.v_l[l] != other.v_l[l]:
                 return False
         return True
@@ -59,14 +60,15 @@ class CGDualVariablesFromMaster:
 
 @dataclass
 class DeployPeriodVariables:
-    y: list[list[float]] = field(default_factory= lambda: [[0.0 for t in range(parameters.number_periods)] for f in range(configs.NUM_SMOLT_TYPES)])  # Index order: f, t
-    x: list[list[list[float]]] = field(default_factory=lambda: [[[0.0 for s in range(configs.NUM_SCENARIOS)] for t in range(parameters.number_periods + 1)] for f in range(configs.NUM_SMOLT_TYPES)])# Index order: f, t, s
-    w: list[list[list[float]]] = field(default_factory=lambda: [[[0.0 for s in range(configs.NUM_SCENARIOS)] for t in range(parameters.number_periods)] for f in range(configs.NUM_SMOLT_TYPES)]) #Index order: f, t, s
-    deploy_bin: list[float] = field(default_factory=lambda: [0.0 for t in range(parameters.number_periods)]) #Index order: t
-    deploy_type_bin: list[list[float]] = field(default_factory=lambda: [[0.0 for t in range(parameters.number_periods)] for f in range(configs.NUM_SMOLT_TYPES)])#Index order: f, t
-    employ_bin: list[list[float]] = field(default_factory=lambda:[[0.0 for s in range(configs.NUM_SCENARIOS)]for t in range(parameters.number_periods)]) #Index order: t, s
-    employ_bin_granular: list[list[float]] = field(default_factory=lambda:[[0.0 for s in range(configs.NUM_SCENARIOS)]for t in range(parameters.number_periods)]) #Index order: t, s
-    harvest_bin: list[list[float]] = field(default_factory=lambda:[[0.0 for s in range(configs.NUM_SCENARIOS)]for t in range(parameters.number_periods)]) #Index order: t, s
+    def __init__(self, configs):
+        self.y = [[0.0 for t in range(parameters.number_periods)] for f in range(configs.NUM_SMOLT_TYPES)]  # Index order: f, t
+        self.x = [[[0.0 for s in range(configs.NUM_SCENARIOS)] for t in range(parameters.number_periods + 1)] for f in range(configs.NUM_SMOLT_TYPES)]# Index order: f, t, s
+        self.w = [[[0.0 for s in range(configs.NUM_SCENARIOS)] for t in range(parameters.number_periods)] for f in range(configs.NUM_SMOLT_TYPES)] #Index order: f, t, s
+        self.deploy_bin =  [0.0 for t in range(parameters.number_periods)] #Index order: t
+        self.deploy_type_bin = [[0.0 for t in range(parameters.number_periods)] for f in range(configs.NUM_SMOLT_TYPES)]#Index order: f, t
+        self.employ_bin = [[0.0 for s in range(configs.NUM_SCENARIOS)]for t in range(parameters.number_periods)] #Index order: t, s
+        self.employ_bin_granular = [[0.0 for s in range(configs.NUM_SCENARIOS)]for t in range(parameters.number_periods)] #Index order: t, s
+        self.harvest_bin = [[0.0 for s in range(configs.NUM_SCENARIOS)]for t in range(parameters.number_periods)] #Index order: t, s
 
 @dataclass
 class CGColumn:
@@ -74,7 +76,7 @@ class CGColumn:
     iteration_k: int
     production_schedules: Dict[int, DeployPeriodVariables] = field(default_factory=dict)
 
-    def write_to_file(self):
+    def write_to_file(self, configs):
         deploy_period_list = []
         for deploy_period, deploy_period_variables in self.production_schedules.items():
             f_list = []
@@ -106,7 +108,7 @@ class CGColumn:
         df_sorted = df_reordered.sort_index(level=["Scenario", "Smolt Type", "Deploy Period", "Period"], ascending=[True,True,True,True])
         df_sorted.to_excel(f"{configs.OUTPUT_DIR}column_variable_values_site{self.site}_iteration{self.iteration_k}.xlsx")
 
-    def calculate_reduced_cost(self, cg_dual_variables: CGDualVariablesFromMaster):
+    def calculate_reduced_cost(self, configs, cg_dual_variables: CGDualVariablesFromMaster):
         objective = 0
         for deploy_period, deploy_period_variables in self.production_schedules.items():
             for f in range(configs.NUM_SMOLT_TYPES):
@@ -124,13 +126,15 @@ class CGColumn:
 
 @dataclass
 class NodeLabel:
-    number: int
-    parent: int
-    level: int
-    integer_feasible:bool = field(default=False)
-    LP_solution: float = field(default=0)
-    MIP_solution: float = field(default=0)
-    up_branching_indices: list[list[int]] = field(default_factory= lambda: [[] for _ in range(configs.NUM_LOCATIONS)]) #site, index
-    down_branching_indices: list[list[int]] = field(default_factory= lambda: [[] for _ in range(configs.NUM_LOCATIONS)]) #site, index
+    def __init__(self, configs):
+        self.configs = configs
+        self.number: int = 0
+        self.parent: int = 0
+        self.level: int = 0
+        self.integer_feasible:bool = False
+        self.LP_solution: float = 0
+        self.MIP_solution: float = 0
+        self.up_branching_indices: list[list[int]] = [[] for _ in range(configs.NUM_LOCATIONS)] #site, index
+        self.down_branching_indices: list[list[int]] = [[] for _ in range(configs.NUM_LOCATIONS)] #site, index
 
 

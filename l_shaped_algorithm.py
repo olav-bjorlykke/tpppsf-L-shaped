@@ -1,14 +1,13 @@
 from l_shaped_master_problem import LShapedMasterProblem
 from l_shaped_sub_problem import LShapedSubProblem
-import initialization.configs as configs
-import initialization.sites as sites
-from data_classes import CGDualVariablesFromMaster, NodeLabel, CGColumn, DeployPeriodVariables
+from data_classes import CGColumn, DeployPeriodVariables
 from gurobipy import GRB
 import logging
 
 class LShapedAlgorithm:
-    def __init__(self, site, site_index, node_label=NodeLabel(0,0,0)) -> None:
-        self.master = LShapedMasterProblem(site, site_index)
+    def __init__(self, site, site_index, configs, node_label, input_data) -> None:
+        self.configs = configs
+        self.master = LShapedMasterProblem(site, site_index, self.configs, input_data)
         self.site = site
         self.l = site_index
         self.node_label = node_label
@@ -26,18 +25,15 @@ class LShapedAlgorithm:
             self.master.model.write("L-shaped-master-problem.ilp")
             return False
 
-        #Write initial objective value to file
-        #self.write_obj_value_to_file(self.master, iteration=iteration_counter)
-
         # Sets the old master problem to be none in the first iteration
         old_master_problem_solution = None
         # new master problem solution set to be the solution with no cuts, this is an Lshaped data class object
         new_master_problem_solution = self.master.get_variable_values()
         #Initializes a list of L-shaped sub-problems
-        subproblems = [LShapedSubProblem(scenario=s, site=self.site,site_index= self.l,fixed_variables= new_master_problem_solution, cg_dual_variables=cg_dual_variables) for s in range(configs.NUM_SCENARIOS)]
+        subproblems = [LShapedSubProblem(scenario=s, site=self.site,site_index= self.l,fixed_variables= new_master_problem_solution, cg_dual_variables=cg_dual_variables, configs=self.configs) for s in range(self.configs.NUM_SCENARIOS)]
         #Initializes an empyt list for dual variable tracking
-        dual_variables = [None for _ in range(configs.NUM_SCENARIOS)]
-        for s in range(configs.NUM_SCENARIOS):
+        dual_variables = [None for _ in range(self.configs.NUM_SCENARIOS)]
+        for s in range(self.configs.NUM_SCENARIOS):
             #Initializes the gurobi model for all sub-problems
             subproblems[s].initialize_model()
         while new_master_problem_solution != old_master_problem_solution:
@@ -45,18 +41,13 @@ class LShapedAlgorithm:
             #Sets the previous solution to be the solution found in the last iteration, before finding a new solution
             old_master_problem_solution = new_master_problem_solution
             #Solve the sub-problem for every scenario, with new fixed variables from master problem
-            for s in range(configs.NUM_SCENARIOS):
+            for s in range(self.configs.NUM_SCENARIOS):
                 subproblems[s].update_model(new_master_problem_solution)
                 subproblems[s].solve()
-                #subproblems[s].model.write(f"subsub{s}.lp")
                 if subproblems[s].model.status != GRB.OPTIMAL:
                     subproblems[s].model.computeIIS()
                     subproblems[s].model.write(f"subsub{s}.ilp")
-
-
                 self.ls_logger.info(f"{iteration_counter} Sub: {s}: Objective: {subproblems[s].model.objVal}")
-                #subproblems[s].model.write(f"subsub{s}.lp")
-
                 #Fetch dual variables from sub-problem, and write to list so they can be passed to the master problem
                 dual_variables[s] = subproblems[s].get_dual_values()
             #Add new optimality cut, based on dual variables
@@ -65,37 +56,23 @@ class LShapedAlgorithm:
             self.master.solve()
             self.ls_logger.info(f"{iteration_counter} master:{self.master.model.objVal}")
             new_master_problem_solution = self.master.get_variable_values()
-            #Log the objective value
-            #self.write_obj_value_to_file(self.master, iteration=iteration_counter)
-
 
         #Once the L-shaped terminates, we solve it as a MIP to generate an integer feasible solution
-        for s in range(configs.NUM_SCENARIOS):
+        for s in range(self.configs.NUM_SCENARIOS):
             subproblems[s].update_model_to_mip(new_master_problem_solution)
             subproblems[s].solve()
-            #subproblems[s].model.write(f"subsub_mip{s}.lp")
             if subproblems[s].model.status != GRB.OPTIMAL:
                 subproblems[s].model.computeIIS()
                 subproblems[s].model.write(f"subsub{s}_mip.ilp")
                 subproblems[s].model.write(f"subsub{s}_mip.lp")
-
-        #This prints the solution to file -> Can be deleted once integrated with colum generation
-        new_master_problem_solution.write_to_file()
-        
         self.subproblems = subproblems
         return True
 
 
-    def write_obj_value_to_file(self, master_problem, iteration):
-        f = open(f"{configs.OUTPUT_DIR}L_shapedMP_obj_value.txt", "a")
-        param_name = "ObjVal"
-        f.write(f"MP solution iteration {iteration}: {master_problem.model.getAttr(param_name)}\n")
-        f.close()
-
     def get_column_object(self, iteration):
         column = CGColumn(self.l, iteration)
         for t_hat in self.master.get_deploy_period_list():
-            deploy_period_variables = DeployPeriodVariables()
+            deploy_period_variables = DeployPeriodVariables(self.configs)
             for f in range(self.master.f_size):
                 for t in range(self.master.t_size):
                     deploy_period_variables.y[f][t] = round(self.master.y[f, t].x, 5)
@@ -115,12 +92,11 @@ class LShapedAlgorithm:
         return column
 
     def set_up_logging(self):
-        path = configs.LOG_DIR
+        path = self.configs.LOG_DIR
         logging.basicConfig(
             level=logging.INFO,
             filemode='a'  # Set filemode to 'w' for writing (use 'a' to append)
         )
-
         # Creating logger for logging master problem values
         self.ls_logger = logging.getLogger("ls_logger")
         file_handler1 = logging.FileHandler(f'{path}ls_logger.log')

@@ -1,5 +1,4 @@
 from initialization.input_data import InputData
-import initialization.configs as configs
 import initialization.parameters as parameters
 from initialization.sites import Site
 from model import Model
@@ -7,7 +6,6 @@ import gurobipy as gp
 from gurobipy import GRB
 from data_classes import LShapedMasterProblemVariables, LShapedSubProblemDualVariables, CGDualVariablesFromMaster
 import pandas as pd
-import logging
 
 class LShapedSubProblem(Model):
     def __init__(self,
@@ -16,14 +14,15 @@ class LShapedSubProblem(Model):
                  site_index: int,                                 
                  fixed_variables: LShapedMasterProblemVariables,
                  cg_dual_variables: CGDualVariablesFromMaster,
-                 input_data = InputData()
+                 configs,
                  ):
         self.site = site
         self.scenario = scenario
         self.location = site_index
         self.fixed_variables = fixed_variables
         self.cg_dual_variables = cg_dual_variables
-        self.input_data = input_data
+        self.input_data = InputData(configs)
+        self.configs = configs
         self.s_size = configs.NUM_SCENARIOS
         self.f_size = configs.NUM_SMOLT_TYPES
         self.t_size = parameters.number_periods
@@ -63,7 +62,6 @@ class LShapedSubProblem(Model):
         self.add_biomass_development_constraints()
         self.add_w_forcing_constraint()
         #self.add_x_forcing_constraint()
-        #self.add_MAB_requirement_constraint()
         self.add_MAB_requirement_constraint_lp()
         self.add_UB_constraints()
         self.add_inactivity_constraint()
@@ -137,32 +135,14 @@ class LShapedSubProblem(Model):
     """
     Objective
     """
-    def add_objective(self):
-        penalty_parameter = parameters.penalty_parameter_L_sub #This should not be very high -> It will lead to numeric instability
-        self.model.setObjective(
-            gp.quicksum(self.w[f,t_hat,t]
-                        for f in range(self.f_size)
-                        for t_hat in range(self.t_size)
-                        for t in range(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat],
-                                       min(t_hat + parameters.max_periods_deployed, self.t_size))
-                        )
-
-            - penalty_parameter * gp.quicksum(self.z_slack_1[t] for t in range(self.t_size))
-            - penalty_parameter * gp.quicksum(self.z_slack_2[t_hat, t] for t_hat in range(self.t_size) for t in range(t_hat, self.t_size))
-            - penalty_parameter * gp.quicksum(self.z_slack_3[t] for t in range(self.t_size))
-            # NOTE: This is not the range specified in the formulation, but it should work since
-            # the slack variable will always be 0 if it can with this formulation of the max problem.
-            , GRB.MAXIMIZE
-        )
     def add_mip_objective(self):
         self.model.setObjective(
             gp.quicksum(
-                configs.SCENARIO_PROBABILITIES[self.scenario] *
+                self.configs.SCENARIO_PROBABILITIES[self.scenario] *
                 gp.quicksum(self.w[f, t_hat, t]
                             for t in range(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat],
                                   min(t_hat + parameters.max_periods_deployed, self.t_size))
                 )
-
                 - gp.quicksum(
                     self.x[f, t_hat, t] * self.cg_dual_variables.u_MAB[t][self.scenario]
                     for t in range(t_hat, min(t_hat + parameters.max_periods_deployed, self.t_size + 1))
@@ -177,7 +157,7 @@ class LShapedSubProblem(Model):
         penalty_parameter = parameters.penalty_parameter_L_sub #This should not be very high -> It will lead to numeric instability
         self.model.setObjective(
             gp.quicksum(
-                configs.SCENARIO_PROBABILITIES[self.scenario] *
+                self.configs.SCENARIO_PROBABILITIES[self.scenario] *
                 gp.quicksum(
                     self.w[f, t_hat, t] for t in range(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat],
                                     min(t_hat + parameters.max_periods_deployed, self.t_size))
@@ -411,4 +391,4 @@ class LShapedSubProblem(Model):
             f_list.append(pd.concat(t_hat_list, keys=[i for i in range(self.t_size)]))
         df = pd.concat(f_list, keys=[i for i in range(self.f_size)])
         df_filtered = df.loc[~(df[["X", "W", "Employ_bin_gran"]] == 0).all(axis=1)]
-        df_filtered.to_excel(f"{configs.OUTPUT_DIR}variable_values{self.scenario}.xlsx")
+        df_filtered.to_excel(f"{self.configs.OUTPUT_DIR}variable_values{self.scenario}.xlsx")

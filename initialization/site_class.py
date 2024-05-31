@@ -28,6 +28,7 @@ class Site:
     def __init__(self,
                  scenario_temperatures,
                  MAB_capacity,
+                 configs,
                  site_name = "Not Set",
                  init_biomass = 0,
                  init_avg_weight = 0,
@@ -35,7 +36,8 @@ class Site:
                  ):
 
         #Setting class variables
-        self.TGC_array = InputData().TGC_df.iloc[0]                                               #Array of all TGC for a possible deploy period
+        self.configs = configs
+        self.TGC_array = InputData(self.configs).TGC_df.iloc[0]                                               #Array of all TGC for a possible deploy period
         self.MAB_capacity = MAB_capacity                                          #Max biomass capacity at a single site
         self.init_biomass = init_biomass                                          #Initial biomass at the site, i.e biomass in the first period
         self.init_avg_weight = init_avg_weight
@@ -289,10 +291,6 @@ class Site:
             weight_dev_array[i+1] = weight_in_next_period
 
         return weight_dev_array
-
-
-
-    #TODO: Go through all functions and dataframes, and ensure that they work as expected!
 
 
 

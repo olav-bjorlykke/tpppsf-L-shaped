@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import initialization.configs as configs
 import random
 import initialization.parameters as parameters
 
@@ -12,16 +11,17 @@ class InputData:
     temperatures_df = None
     TGC_df = None
     mortality_rates_df = None
-    
     #Variables to be read
     scenario_temperatures_per_site_df = None
 
     #Variables to be input here:
-    scenarios_variations = configs.SCENARIOS_VARIATIONS
-    scenario_probabilities = configs.SCENARIO_PROBABILITIES
-    num_scenarios = len(scenarios_variations)
+    
         
-    def __init__(self):
+    def __init__(self, configs):
+        self.configs = configs
+        scenarios_variations = configs.SCENARIOS_VARIATIONS
+        self.scenario_probabilities = configs.SCENARIO_PROBABILITIES
+        self.num_scenarios = len(scenarios_variations)
         #This is constructor function, it reads in data to the variables by calling the read methods
         self.temperatures_df = self.read_input_temperatures("data/temps_aasen.txt")
         self.TGC_df = self.read_input_tgc("data/tgc_aasen.txt")
@@ -125,7 +125,7 @@ class InputData:
             #site_df = pd.DataFrame([base_temperature_df.iloc[i] * self.scenarios_variations[j] for j in range(self.num_scenarios)], index=[f"Scenario {j}" for j in range(self.num_scenarios)])
             base_temps = base_temperature_df.iloc[i]
             scenarios_temps_list = []
-            for j in range(configs.NUM_SCENARIOS):
+            for j in range(self.configs.NUM_SCENARIOS):
                 scenario_temps = [base_temps[t] * random.uniform(0.90,1.05) for t in range(len(base_temps))]
                 scenarios_temps_list.append(scenario_temps)
 
@@ -138,12 +138,3 @@ class InputData:
         scenario_temperatures_per_site_df = pd.concat([df for df in scenario_temperatures], keys=sites)
 
         return scenario_temperatures_per_site_df
-
-
-if __name__ == '__main__':
-    input_data = InputData()
-    scenarios_temperatures = input_data.scenario_temperatures_per_site_df
-    scenarios_temperatures.to_excel("scenarios_temperatures.xlsx")
-
-
-
