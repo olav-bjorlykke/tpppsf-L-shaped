@@ -65,6 +65,7 @@ class LShapedAlgorithm:
                 subproblems[s].model.computeIIS()
                 subproblems[s].model.write(f"subsub{s}_mip.ilp")
                 subproblems[s].model.write(f"subsub{s}_mip.lp")
+                return False
         self.subproblems = subproblems
         return True
 

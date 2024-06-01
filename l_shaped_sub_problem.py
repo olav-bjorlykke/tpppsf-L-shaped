@@ -171,7 +171,7 @@ class LShapedSubProblem(Model):
                 for t_hat in range(self.t_size)
             )
             - penalty_parameter * gp.quicksum(self.z_slack_1[t] for t in range(self.t_size))
-            - penalty_parameter * 500 * gp.quicksum(self.z_slack_2[t_hat, t] for t_hat in range(self.t_size) for t in range(t_hat, self.t_size))
+            - penalty_parameter * 5000 * gp.quicksum(self.z_slack_2[t_hat, t] for t_hat in range(self.t_size) for t in range(t_hat, self.t_size))
             - penalty_parameter * gp.quicksum(self.z_slack_3[t] for t in range(self.t_size))
             , GRB.MAXIMIZE
         )
@@ -280,7 +280,7 @@ class LShapedSubProblem(Model):
         )
     def add_MAB_requirement_constraint_lp(self):
         self.model.addConstrs((
-            gp.quicksum(self.x[f, t_hat, t] for f in range(self.f_size)) - self.z_slack_2[t_hat,t] <= self.site.MAB_capacity * 0.9999
+            gp.quicksum(self.x[f, t_hat, t] for f in range(self.f_size)) - self.z_slack_2[t_hat,t] <= self.site.MAB_capacity * 0.995
             for t_hat in range(self.t_size)
             for t in range(t_hat, min(t_hat + parameters.max_periods_deployed, self.t_size +1))
         ), name="MAB_constraints"
