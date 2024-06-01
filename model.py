@@ -221,6 +221,7 @@ class Model:
     def create_zero_column(self, iteration):
         self.model = gp.Model(f"Find feasible solution")
         self.model.setParam("MIPFocus", 1)
+        self.model.setParam("TimeLimit", 3600)
         # Stopping the model after one feasible solution is found
         self.model.setParam(GRB.Param.SolutionLimit, 5)
 
