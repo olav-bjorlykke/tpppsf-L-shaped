@@ -4,15 +4,15 @@ import os
 class Configs:
     def __init__(self) -> None:
         self.ALGORITHMS_LIST = ["B&P w L-SHAPED", "B&P w GUROBI", "MONOLITHIC MODEL"]
-        self.INSTANCES = ["SMALL", "MEDIUM", "LARGE", "TEST"]
+        self.INSTANCES = ["SMALL", "MEDIUM", "LARGE", "TEST", "SINGLE_SITE"]
         self.INSTANCE = self.INSTANCES[self.set_instance()]
         self.NUM_SCENARIOS = self.set_scenarios()
         self.ALGORITHM = self.set_algorithm()
         self.OUTPUT_DIR = f"./output/instance_{self.INSTANCE}_scenario_{self.NUM_SCENARIOS}_{self.ALGORITHMS_LIST[self.ALGORITHM].strip()}/"
         self.LOG_DIR = f"{self.OUTPUT_DIR}logs/"
         self.NUM_SMOLT_TYPES = 1
-        self.MAB_COMPANY_LIMIT = 4000 * 1000
-        self.NUM_LOCATIONS = 2
+        self.MAB_COMPANY_LIMIT = 5000 * 1000
+        self.NUM_LOCATIONS = 1
         
         self.SCENARIOS_VARIATIONS = [0.95 + (i*0.1)/self.NUM_SCENARIOS for i in range(self.NUM_SCENARIOS)]
         self.SCENARIO_PROBABILITIES = [1/self.NUM_SCENARIOS for _ in range(self.NUM_SCENARIOS)]
@@ -39,10 +39,13 @@ class Configs:
         elif self.INSTANCE == "SMALL":
             self.NUM_LOCATIONS = 3
             self.MAB_COMPANY_LIMIT = 6000 * 1000
-        else:
+        elif self.INSTANCE == "TEST":
             self.NUM_LOCATIONS = 2
             self.MAB_COMPANY_LIMIT = 5000 * 1000
-            print("Instance not defined")
+        else:
+            self.NUM_LOCATIONS = 1
+            self.MAB_COMPANY_LIMIT = 5000 * 1000
+
 
         if not os.path.exists(self.OUTPUT_DIR):
             # Create the directory
@@ -60,7 +63,7 @@ class Configs:
 
 
     def set_instance(self):
-        instance = int(input("Set the instance 0 = small, 1 = medium, 2 = large, 3 = test: "))
+        instance = int(input("Set the instance 0 = small, 1 = medium, 2 = large, 3 = test, 4 = single site: "))
         return instance
 
     def set_scenarios(self):

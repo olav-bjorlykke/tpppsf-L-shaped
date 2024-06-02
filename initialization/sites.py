@@ -157,14 +157,19 @@ class Sites:
         #Defining test instance with 2 sites
         test_sites_list = [site_4, site_15]
 
+        # Defining test instance with 1 sites
+        single_sites_list = [site_4]
+
         #Creating lists of subproblem objects corresponding to the lists of sites above
         sub_problem_list = [Model(site_objects=site, configs=configs) for site in large_sites_list]
         medium_sub_problem_list = [Model(site_objects=site, configs=configs) for site in medium_sites_list]
         short_sub_problem_list = [Model(site_objects=site, configs=configs) for site in short_sites_list]
         test_sub_problem_list = [Model(site_objects=site, configs=configs) for site in test_sites_list]
+        single_sub_problem_list = [Model(site_objects=site, configs=configs) for site in single_sites_list]
 
         #Declaring which variables to set to one in the first node in the branch and price search tree.
         #All sites with initial biomass have their deploy variable for period 0 set to be 1
+        single_site_init_list = []
         test_node_init_list = [[1,0]]
         short_node_init_list = []
         medium_node_init_list = [[0,0],[4,0],[6,0],[7,0]]
@@ -196,6 +201,16 @@ class Sites:
             self.NODE_INIT_LIST = long_node_init_list
             self.SUB_PROBLEM_LIST = sub_problem_list
             self.SITE_LIST = large_sites_list
+
+        elif configs.INSTANCE == "TEST":
+            self.NODE_INIT_LIST = test_node_init_list
+            self.SUB_PROBLEM_LIST = test_sub_problem_list
+            self.SITE_LIST = test_sites_list
+
+        elif configs.INSTANCE == "SINGLE_SITE":
+            self.NODE_INIT_LIST = single_site_init_list
+            self.SUB_PROBLEM_LIST = single_sub_problem_list
+            self.SITE_LIST = single_sites_list
 
         else:
             print("Instance set does not match any, set to default")

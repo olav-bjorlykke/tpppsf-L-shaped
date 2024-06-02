@@ -101,7 +101,7 @@ class Model:
         :return:
         """
         self.model = gp.Model(f"Single site solution")
-        self.model.setParam('OutputFlag', 0)
+        self.model.setParam("LogFile", f"{self.configs.OUTPUT_DIR}monolithic_log")
 
         #Declaing variables
         self.declare_variables()
@@ -121,8 +121,8 @@ class Model:
         self.add_MAB_company_requirement_constraint()
         self.add_employ_bin_forcing_constraints()
         self.add_x_forcing_constraint()
-        self.add_up_branching_constraints()
-        self.add_down_branching_constraints()
+        self.add_up_branching_constraints([])
+        self.add_down_branching_constraints([])
         self.add_valid_inequality()
 
         #Running gurobi to optimize model

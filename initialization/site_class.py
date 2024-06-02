@@ -50,6 +50,7 @@ class Site:
         #Setting the init biomass at site variable
         if init_biomass != 0: self.init_biomass_at_site = True
 
+        print(f"calculating at site {self.name}")
         #Calulating growth and weight development dataframes for all scenarios and possible smolt weights
         self.growth_per_scenario_df = self.calculate_growth_df_for_scenarios_and_smolt_weights(self.smolt_weights, scenario_temperatures)
         self.weight_dev_per_scenario_df = self.calculate_weight_df_for_scenarios_and_smolt_weights(self.smolt_weights, scenario_temperatures)
@@ -83,7 +84,7 @@ class Site:
         for weight in weights:
             #Creating variable for storing data to be put into dataframe
             scenario_growth_sets = []
-            for scenario in scenarios:
+            for i, scenario in enumerate(scenarios):
                 #Calculating the growth sets for a single scenario and smolt weight:
                 growth_sets = self.calculate_growth_sets_for_single_scenario_and_weight(weight_development_df.loc[(weight,scenario)], weight_req_for_harvest)
                 scenario_growth_sets.append(growth_sets)
