@@ -28,6 +28,7 @@ class Site:
     def __init__(self,
                  scenario_temperatures,
                  MAB_capacity,
+                 configs,
                  site_name = "Not Set",
                  init_biomass = 0,
                  init_avg_weight = 0,
@@ -35,7 +36,8 @@ class Site:
                  ):
 
         #Setting class variables
-        self.TGC_array = InputData().TGC_df.iloc[0]                                               #Array of all TGC for a possible deploy period
+        self.configs = configs
+        self.TGC_array = InputData(self.configs).TGC_df.iloc[0]                                               #Array of all TGC for a possible deploy period
         self.MAB_capacity = MAB_capacity                                          #Max biomass capacity at a single site
         self.init_biomass = init_biomass                                          #Initial biomass at the site, i.e biomass in the first period
         self.init_avg_weight = init_avg_weight
@@ -48,6 +50,7 @@ class Site:
         #Setting the init biomass at site variable
         if init_biomass != 0: self.init_biomass_at_site = True
 
+        print(f"calculating at site {self.name}")
         #Calulating growth and weight development dataframes for all scenarios and possible smolt weights
         self.growth_per_scenario_df = self.calculate_growth_df_for_scenarios_and_smolt_weights(self.smolt_weights, scenario_temperatures)
         self.weight_dev_per_scenario_df = self.calculate_weight_df_for_scenarios_and_smolt_weights(self.smolt_weights, scenario_temperatures)
@@ -81,7 +84,7 @@ class Site:
         for weight in weights:
             #Creating variable for storing data to be put into dataframe
             scenario_growth_sets = []
-            for scenario in scenarios:
+            for i, scenario in enumerate(scenarios):
                 #Calculating the growth sets for a single scenario and smolt weight:
                 growth_sets = self.calculate_growth_sets_for_single_scenario_and_weight(weight_development_df.loc[(weight,scenario)], weight_req_for_harvest)
                 scenario_growth_sets.append(growth_sets)
@@ -289,10 +292,6 @@ class Site:
             weight_dev_array[i+1] = weight_in_next_period
 
         return weight_dev_array
-
-
-
-    #TODO: Go through all functions and dataframes, and ensure that they work as expected!
 
 
 

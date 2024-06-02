@@ -1,16 +1,17 @@
 import gurobipy as gp
 from gurobipy import GRB
 import initialization.parameters as parameters
-import initialization.configs as configs
-import initialization.input_data as input_data
-from data_classes import LShapedMasterProblemVariables
+from data_classes import LShapedMasterProblemVariables, CGDualVariablesFromMaster
 
 class LShapedMasterProblem():
     def __init__(self, 
                  site, 
                  site_index,
-                 input_data = input_data.InputData()
+                 configs,
+                 input_data
                  ):
+        self.configs = configs
+        cg_dual_variables = CGDualVariablesFromMaster(configs)
         self.input_data = input_data
         self.site = site
         self.l = site_index
@@ -20,15 +21,17 @@ class LShapedMasterProblem():
         self.t_size = parameters.number_periods
         self.growth_sets = self.site.growth_sets
         self.smolt_weights = parameters.smolt_weights
+        self.cg_dual_variables = cg_dual_variables
 
 
-
-    def initialize_model(self, node_label):
+    def initialize_model(self, node_label, cg_dual_variables):
+        self.cg_dual_variables = cg_dual_variables
         self.model = gp.Model(f"L-shaped master problem model")
         self.model.setParam("OutputFlag", 0)
         self.model.setParam("MIPFocus", 3)
         self.model.setParam("NumericFocus", 3)
         self.model.setParam("IntegralityFocus", 1)
+        self.model.setParam("MIPGap", 10**(-5))
         self.declare_variables()
         self.set_objective()
         self.add_initial_condition_constraint()
@@ -58,7 +61,7 @@ class LShapedMasterProblem():
         self.model.setObjective(
             gp.quicksum(
                 self.theta[s] for s in range(self.s_size)
-            )
+            ) - self.cg_dual_variables.v_l[self.l]
             ,GRB.MAXIMIZE
         )
     
@@ -131,21 +134,23 @@ class LShapedMasterProblem():
 
     def add_optimality_cuts(self, dual_variables):
         self.model.addConstrs(
-            self.theta[s] <= configs.SCENARIO_PROBABILITIES[s] *
+            self.theta[s] <=
             (
-                gp.quicksum(dual_variables[s].rho_1[t] * (1 - self.deploy_bin[t]) * parameters.min_fallowing_periods for t in range(self.t_size-parameters.min_fallowing_periods))
+                gp.quicksum(dual_variables[s].rho_1[t-parameters.min_fallowing_periods] * (1 - self.deploy_bin[t]) * parameters.min_fallowing_periods for t in range(parameters.min_fallowing_periods, self.t_size))
                 + 
                 gp.quicksum(gp.quicksum(dual_variables[s].rho_2[f][t] * self.y[f, t] for f in range(self.f_size)) for t in range(self.t_size))
                 +
                 gp.quicksum(dual_variables[s].rho_3[t] for t in range(self.t_size - parameters.max_fallowing_periods))
                 +
-                dual_variables[s].rho_4
+                gp.quicksum(dual_variables[s].rho_4[t-parameters.min_fallowing_periods] * (1 - self.deploy_bin[t]) for t in range(parameters.min_fallowing_periods, self.t_size))
                 +
                 gp.quicksum(gp.quicksum(dual_variables[s].rho_5[t_hat][t] * self.site.MAB_capacity for t in range(min(t_hat + parameters.max_periods_deployed, self.t_size + 1)-t_hat)) for t_hat in range(self.t_size))
                 + 
                 gp.quicksum(dual_variables[s].rho_6[t] for t in range(self.t_size))
                 + 
                 gp.quicksum(dual_variables[s].rho_7[t] for t in range(self.t_size))
+                +
+                gp.quicksum(dual_variables[s].rho_8[t_hat][t] for t in range(self.t_size)for t_hat in range(self.t_size))
             )
             for s in range(self.s_size)
         )
@@ -189,14 +194,13 @@ class LShapedMasterProblem():
             for t in range(self.t_size):
                 #Appending the y and deploy variables to the 2-D list for the given smolt type and period
 
-                y_values[f].append(self.y[f, t].getAttr("x"))
-                deploy_type_bin_values[f].append(self.deploy_type_bin[f, t].getAttr("x"))
+                y_values[f].append(round(self.y[f, t].getAttr("x"), 1))
+                deploy_type_bin_values[f].append(round(self.deploy_type_bin[f, t].getAttr("x"), 1))
         for t in range(self.t_size):
             #Appending the deploy binary values to the list
-            deploy_bin_values.append(self.deploy_bin[t].getAttr("x"))
+            deploy_bin_values.append(round(self.deploy_bin[t].getAttr("x"), 1))
         #Returns a data_class with the stores variables
         return LShapedMasterProblemVariables(self.l, y_values, deploy_bin_values, deploy_type_bin_values)
-
 
 
     def add_branching_constraints(self, node_label):
@@ -205,7 +209,6 @@ class LShapedMasterProblem():
                 self.deploy_bin[index] == 1
                 , name="branch-up"
             )
-        
        
         for index in node_label.down_branching_indices[self.l]:
             self.model.addConstr(
@@ -215,7 +218,7 @@ class LShapedMasterProblem():
 
     def print_variable_values(self):
         variables = self.get_variable_values()
-        variables.write_to_file()
+        variables.write_to_file(self.configs)
 
     def get_deploy_period_list(self):
         deploy_period_list = [t for t in range(0, self.t_size) if self.deploy_bin[t].x == 1]

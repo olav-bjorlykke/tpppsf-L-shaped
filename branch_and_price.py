@@ -1,30 +1,32 @@
 from cg_master_problem import CGMasterProblem, CGDualVariablesFromMaster
-import initialization.sites as sites
+from initialization.sites import Sites
 from model import Model
 from data_classes import NodeLabel
-import initialization.configs as configs
 import copy
-from gurobipy import GRB # type: ignore
+from gurobipy import GRB
 import logging
 from l_shaped_algorithm import LShapedAlgorithm
 from time import perf_counter
+import multiprocessing
 
 class BranchAndPrice:
-    def __init__(self):
-        self.master = CGMasterProblem()
+    def __init__(self, configs, input_data):
+        self.configs = configs
+        self.input_data = input_data
+        self.master = CGMasterProblem(self.configs)
         self.set_up_logging()
         self.upper_bound = 1000000000000
         self.lower_bound = 0
-
+        self.sites = Sites(configs)
+        
     def branch_and_price(self, l_shaped: bool):
         self.generate_initial_columns()
         #Initializing branch and price
-        current_best_solution = 0
-        root = NodeLabel(number=0, parent=0, level=0)
+        root = NodeLabel(configs=self.configs)
         q = [root]
         solved_nodes = []
         node_number = 0
-        branched_indexes = sites.NODE_INIT_LIST
+        branched_indexes = self.sites.NODE_INIT_LIST
         for indexes in branched_indexes:
             root.up_branching_indices[indexes[0]].append(indexes[1])
 
@@ -35,9 +37,9 @@ class BranchAndPrice:
             current_node = q.pop(0)
             feasible = False
             if l_shaped:
-                feasible = self.column_generation_ls(current_node)
+                feasible = self.column_generation_ls_parallel(current_node)
             else:
-                feasible = self.column_generation(current_node)
+                feasible = self.column_generation_parallel(current_node)
 
             self.master_logger.info(f"Solved node: {current_node.number}")
             if not feasible: #Pruning criteria 1
@@ -64,7 +66,6 @@ class BranchAndPrice:
                 continue
             if integer_feasible: #Pruning criteria 3
                 #If the LP solution is integer feasible -> prune!
-                current_best_solution = lp_solution
                 current_node.MIP_solution = lp_solution
                 current_node.integer_feasible = True
                 solved_nodes.append(current_node)
@@ -78,7 +79,6 @@ class BranchAndPrice:
             current_node.LP_solution = lp_solution
             current_node.MIP_solution = mip_solution
             if mip_solution > self.lower_bound: self.lower_bound = mip_solution
-
 
             mip_solution = 0
             lp_solution = 0
@@ -102,32 +102,31 @@ class BranchAndPrice:
             self.general_logger.info(f"Branched indexes:{branched_indexes}")
             #Creating child nodes
             node_number += 1
-            new_node_up = NodeLabel(number=node_number, 
-                                    parent=current_node.number, 
-                                    level=current_node.level+1, 
-                                    up_branching_indices=new_up_branching_indicies, 
-                                    down_branching_indices=current_node.down_branching_indices)
+            new_node_up = NodeLabel(configs=self.configs) 
+            new_node_up.number = node_number
+            new_node_up.parent = current_node.number 
+            new_node_up.level = current_node.level+1 
+            new_node_up.up_branching_indices=new_up_branching_indicies 
+            new_node_up.down_branching_indices=current_node.down_branching_indices
             #Add one extra to the node_number to ensure they have different numbers
             node_number += 1
-            new_node_down = NodeLabel(number=node_number, 
-                                      parent=current_node.number, 
-                                      level=current_node.level+1, 
-                                      up_branching_indices=current_node.up_branching_indices, 
-                                      down_branching_indices=new_down_branching_indicies)
+            new_node_down = NodeLabel(configs=self.configs)
+            new_node_down.number=node_number
+            new_node_down.parent=current_node.number
+            new_node_down.level=current_node.level+1 
+            new_node_down.up_branching_indices=current_node.up_branching_indices
+            new_node_down.down_branching_indices=new_down_branching_indicies
             #Append new nodes to the search queue
             q.append(new_node_up)
             q.append(new_node_down)
             
-            # optimality_gap = Current Best / Generation lowest LP
-
     def column_generation(self, node_label):
         #Initializing sub problems
-        sub_problems = [Model(sites.SITE_LIST[i], self.master.iterations_k) for i in range(len(sites.SITE_LIST))]
-
+        sub_problems = [Model(self.sites.SITE_LIST[i], self.configs, iterations=self.master.iterations_k) for i in range(len(self.sites.SITE_LIST))]
         self.master.model.setParam('OutputFlag', 0)
-
-        previous_dual_variables = CGDualVariablesFromMaster(u_EOH=[1 for _ in range(configs.NUM_SCENARIOS)])
-        dual_variables = CGDualVariablesFromMaster()
+        previous_dual_variables = CGDualVariablesFromMaster(self.configs)
+        previous_dual_variables.u_MAB[0][0] = 10
+        dual_variables = CGDualVariablesFromMaster(self.configs)
         while previous_dual_variables != dual_variables or self.master.iterations_k < 8:
             previous_dual_variables = dual_variables
             for i, sub in enumerate(sub_problems):
@@ -137,45 +136,64 @@ class BranchAndPrice:
                 if sub.model.status != GRB.OPTIMAL:
                     self.master_logger.info(f"{self.master.iterations_k}: INFEASIBLE in sub_problem {i}")
                     return False
-
                 column = sub.get_column_object(iteration=self.master.iterations_k)
                 column.site = i
-                #column.write_to_file()
-                #TODO:mAKE CONDITIONAL ON sub-problem being feasible
                 self.master.columns[(i, self.master.iterations_k)] = column
                 self.sub_logger.info(f"iteration {self.master.iterations_k} / site {i}:{sub.model.objVal}")
             self.master.update_model(node_label) 
             self.master.solve()
-            #self.master.model.write(f"master_{self.master.iterations_k}.lp")
-            #self.master.model.write(f"master_model_iteration_{self.master.iterations_k}.lp")
             if self.master.model.status == GRB.INF_OR_UNBD:     # To prevent errors, handled by pruning in B&P
                 self.master_logger.info(f"{self.master.iterations_k}: INFEASIBLE!")
                 self.master.iterations_k -= 1
                 return False
             self.master_logger.info(f"{self.master.iterations_k}: objective = {self.master.model.objVal}")                    
             dual_variables = self.master.get_dual_variables()
-            #dual_variables.write_to_file()
-
+        return True
+    
+    def column_generation_parallel(self, node_label):
+        self.master.model.setParam('OutputFlag', 0)
+        previous_dual_variables = CGDualVariablesFromMaster(self.configs)
+        previous_dual_variables.u_MAB[0][0] = 10
+        dual_variables = CGDualVariablesFromMaster(self.configs)
+        while previous_dual_variables != dual_variables or self.master.iterations_k < 8:
+            previous_dual_variables = dual_variables
+            new_columns = self.cg_run_sub_problems_in_parallel(dual_variables, node_label)
+            for column in new_columns:
+                self.master.columns[(column.site, self.master.iterations_k)] = column
+                self.sub_logger.info(f"iteration {self.master.iterations_k} / site {column.site}: {column.calculate_reduced_cost(self.configs, dual_variables)}")
+            self.master.update_model(node_label) 
+            self.master.solve()
+            if self.master.model.status == GRB.INF_OR_UNBD:     # To prevent errors, handled by pruning in B&P
+                self.master_logger.info(f"{self.master.iterations_k}: INFEASIBLE!")
+                self.master.iterations_k -= 1
+                return False
+            self.master_logger.info(f"{self.master.iterations_k}: objective = {self.master.model.objVal}")                    
+            dual_variables = self.master.get_dual_variables()
         return True
 
     def column_generation_ls(self, node_label):
         #Initializing sub problems
         self.master.model.setParam('OutputFlag', 0)
 
-        previous_dual_variables = CGDualVariablesFromMaster(u_EOH=[1 for _ in range(configs.NUM_SCENARIOS)])
-        dual_variables = CGDualVariablesFromMaster()
-        sub_problems = [LShapedAlgorithm(sites.SITE_LIST[i], i, node_label) for i in range(len(sites.SITE_LIST))]
+        previous_dual_variables = CGDualVariablesFromMaster(self.configs)
+        previous_dual_variables.u_MAB[0][0] = 10
+        dual_variables = CGDualVariablesFromMaster(self.configs)
+        sub_problems = [LShapedAlgorithm(self.sites.SITE_LIST[i], i, self.configs, node_label, self.input_data) for i in range(len(self.sites.SITE_LIST))]
         
         while previous_dual_variables != dual_variables or self.master.iterations_k < 8:
             previous_dual_variables = dual_variables
             for i, sub in enumerate(sub_problems):
                 self.general_logger.info(f"## solved subproblem {i}, iteration {self.master.iterations_k} ")
-                sub.solve(dual_variables)
+                feasible = sub.solve(dual_variables)
+                if not feasible:
+                    return False
                 column = sub.get_column_object(iteration=self.master.iterations_k)
                 column.site = i
-                #column.write_to_file()
+                column.write_to_file(self.configs)
                 self.master.columns[(i, self.master.iterations_k)] = column
                 self.sub_logger.info(f"iteration {self.master.iterations_k} / site {i}:{sub.master.model.objVal}") #TODO: this does not account for solving the subsubs as MIPs
+                self.sub_logger.info(
+                    f"Reduced cost of column iteration {self.master.iterations_k}, site{i}: {column.calculate_reduced_cost(self.configs, dual_variables)}")
             self.master.update_model(node_label) 
             self.master.solve()                  
             if self.master.model.status != GRB.OPTIMAL:     # To prevent errors, handled by pruning in B&P
@@ -184,37 +202,78 @@ class BranchAndPrice:
                 return False
             self.master_logger.info(f"{self.master.iterations_k}: objective = {self.master.model.objVal}")                    
             dual_variables = self.master.get_dual_variables()
-            #dual_variables.write_to_file()
-            #dual_variables.write_to_file()
+            dual_variables.write_to_file()
+
+        return True
+
+    def column_generation_ls_parallel(self, node_label):
+        self.master.model.setParam('OutputFlag', 0)
+        previous_dual_variables = CGDualVariablesFromMaster(self.configs)
+        previous_dual_variables.u_MAB[0][0] = 10
+        dual_variables = CGDualVariablesFromMaster(self.configs)
+        while previous_dual_variables != dual_variables or self.master.iterations_k < 8:
+            previous_dual_variables = dual_variables
+            new_columns = self.run_sub_problems_in_parallel(dual_variables, node_label)
+            for column in new_columns:
+                self.master.columns[(column.site, self.master.iterations_k)] = column
+                self.sub_logger.info(f"iteration {self.master.iterations_k} / site {column.site}: {column.calculate_reduced_cost(self.configs, dual_variables)}")  # TODO: this does not account for solving the subsubs as MIPs
+            self.master.update_model(node_label)
+            self.master.solve()
+            if self.master.model.status != GRB.OPTIMAL:  # To prevent errors, handled by pruning in B&P
+                self.master_logger.info(f"{self.master.iterations_k}: status: {self.master.model.status}")
+                self.master.iterations_k -= 1
+                return False
+            self.master_logger.info(f"{self.master.iterations_k}: objective = {self.master.model.objVal}")
+            dual_variables = self.master.get_dual_variables()
+            dual_variables.write_to_file()
         return True
 
     def generate_initial_columns(self):
-        initial = Model(sites.SITE_LIST)
-        #initial_columns = initial.create_zero_column(0)
-        initial_columns2 = initial.create_initial_columns(0)
-
-
-        #for column in initial_columns:
-        #    self.master.columns[(column.site, column.iteration_k)] = column
-
-
-        for column in initial_columns2:
+        initial = Model(self.sites.SITE_LIST, self.configs)
+        initial_columns = initial.create_zero_column(0)
+        initial_columns2 = initial.create_initial_columns(1)
+        for column in initial_columns:
             self.master.columns[(column.site, column.iteration_k)] = column
-
+        for column in initial_columns2:
+           self.master.columns[(column.site, column.iteration_k)] = column
         self.master.initialize_model()
-        self.master.iterations_k = 1
+        self.master.iterations_k = 2
 
     def get_upper_bounds(self, solved_nodes, level):
         lvl_upper_bound = 0
         for node in solved_nodes:
             if (node.level == level) and (node.LP_solution > lvl_upper_bound):
                 lvl_upper_bound = node.LP_solution
-
         return lvl_upper_bound
 
+    def cg_run_sub_problems_in_parallel(self, dual_variables, node_label):
+        processes = []
+        column_queue = multiprocessing.Queue()
+        feasible_queue = multiprocessing.Queue()
+        for i, site in enumerate(self.sites.SITE_LIST):
+            p = multiprocessing.Process(target=cg_create_and_solve_sub_problem, args=(i, dual_variables, node_label, site, self.master.iterations_k, column_queue, feasible_queue, self.configs))
+            processes.append(p)
+            p.start()
+        columns = [column_queue.get() for _ in processes]
+        for p in processes:
+            p.join()
+        return columns
 
+    def run_sub_problems_in_parallel(self, dual_variables, node_label):
+        processes = []
+        column_queue = multiprocessing.Queue()
+        feasible_queue = multiprocessing.Queue()
+        for i, site in enumerate(self.sites.SITE_LIST):
+            p = multiprocessing.Process(target=create_and_solve_sub_problem, args=(i, dual_variables, node_label, site, self.master.iterations_k, column_queue, feasible_queue, self.configs, self.input_data))
+            processes.append(p)
+            p.start()
+        columns = [column_queue.get() for _ in processes]
+        for p in processes:
+            p.join()
+        return columns
+    
     def set_up_logging(self):
-        path = configs.LOG_DIR
+        path = self.configs.LOG_DIR
         logging.basicConfig(
             level=logging.INFO,
             filemode='a'  # Set filemode to 'w' for writing (use 'a' to append)
@@ -226,7 +285,6 @@ class BranchAndPrice:
         file_handler1 = logging.FileHandler(f'{path}master_logger.log')
         file_handler1.setLevel(logging.INFO)
         self.master_logger.addHandler(file_handler1)
-
 
         #Creating logger for logging sub-problem values
         self.sub_logger = logging.getLogger("sub_logger")
@@ -240,10 +298,21 @@ class BranchAndPrice:
         file_handler3.setLevel(logging.INFO)
         self.bp_logger.addHandler(file_handler3)
 
+def create_and_solve_sub_problem(i, dual_variables,node_label, site, iterations_k, column_queue, feasible_queue, configs, input_data):
+    sub_problem = LShapedAlgorithm(site, i, configs, node_label, input_data)
+    feasible = sub_problem.solve(dual_variables)
+    if not feasible:
+        feasible_queue.put(feasible)
+        return False
+    column_queue.put(sub_problem.get_column_object(iterations_k))
 
-
-
-if __name__ == '__main__':
-    bp = BranchAndPrice()
-    bp.branch_and_price()
+def cg_create_and_solve_sub_problem(i, dual_variables,node_label, site, iterations_k, column_queue, feasible_queue, configs):
+    sub_problem = Model(site, configs, iterations_k)
+    feasible = sub_problem.solve_as_sub_problem(dual_variables, node_label.up_branching_indices[i], node_label.down_branching_indices[i], iteration=iterations_k, location=i)
+    if not feasible:
+        feasible_queue.put(feasible)
+        return False
+    column = sub_problem.get_column_object(iteration=iterations_k)
+    column.site = i
+    column_queue.put(column)
 

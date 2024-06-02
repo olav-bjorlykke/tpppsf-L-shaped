@@ -4,9 +4,7 @@ from gurobipy import GRB
 import numpy as np
 import initialization.parameters
 from initialization.input_data import InputData
-from initialization.site_class import Site
 import matplotlib.pyplot as plt
-import initialization.configs as configs
 import time
 import data_classes
 
@@ -19,17 +17,17 @@ class Model:
 
     def __init__(self,
                  site_objects,
+                 configs,
                  MAB_shadow_prices_df = pd.DataFrame(),
                  EOH_shadow_prices_df = pd.DataFrame(),
-                 input_data = InputData(),
                  parameters = initialization.parameters,
-                 scenario_probabilities = configs.SCENARIO_PROBABILITIES,
                  iterations = 0
                  ):
         #Imported classes, containing parameters and data
-        self.input_data = input_data
+        self.configs = configs
+        self.input_data = InputData(configs)
         self.parameters = parameters
-        self.scenario_probabilities = scenario_probabilities
+        self.scenario_probabilities = configs.SCENARIO_PROBABILITIES
 
         if isinstance(site_objects,list):
             self.sites = site_objects
@@ -40,7 +38,7 @@ class Model:
         #Setting variables to contain the size of sets
         self.f_size = configs.NUM_SMOLT_TYPES
         self.t_size = self.parameters.number_periods
-        self.s_size = initialization.configs.NUM_SCENARIOS
+        self.s_size = self.configs.NUM_SCENARIOS
         self.l_size = len(self.sites)
 
         #Defining some variables from the data objects for easier reference
@@ -60,9 +58,7 @@ class Model:
     """
     def solve_and_print_model(self):
         self.model = gp.Model(f"Single site solution")
-        self.model.setParam("LogFile", f"{configs.OUTPUT_DIR}monolithic_log")
-        self.model.setParam(GRB.Param.SolutionLimit, 5)
-        #self.model.setParam('OutputFlag', 0)
+        self.model.setParam("LogFile", f"{self.configs.OUTPUT_DIR}monolithic_log")
 
         #Declaing variables
         self.declare_variables()
@@ -105,7 +101,7 @@ class Model:
         :return:
         """
         self.model = gp.Model(f"Single site solution")
-        self.model.setParam('OutputFlag', 0)
+        self.model.setParam("LogFile", f"{self.configs.OUTPUT_DIR}monolithic_log")
 
         #Declaing variables
         self.declare_variables()
@@ -125,8 +121,8 @@ class Model:
         self.add_MAB_company_requirement_constraint()
         self.add_employ_bin_forcing_constraints()
         self.add_x_forcing_constraint()
-        self.add_up_branching_constraints()
-        self.add_down_branching_constraints()
+        self.add_up_branching_constraints([])
+        self.add_down_branching_constraints([])
         self.add_valid_inequality()
 
         #Running gurobi to optimize model
@@ -174,8 +170,9 @@ class Model:
         # Running gurobi to optimize model
         self.model.optimize()
 
-        #if self.model.status != GRB.INFEASIBLE:
-           #self.plot_solutions_x_values_per_site(iteration)
+        if self.model.status == GRB.INF_OR_UNBD:
+            return False
+        return True
 
     """
     Function for creating initial columns
@@ -188,8 +185,6 @@ class Model:
         self.model.setParam("TimeLimit", 3600)
         #Stopping the model after one feasible solution is found
         self.model.setParam(GRB.Param.SolutionLimit, 5)
-
-
 
         # Declaing variables
         self.declare_variables()
@@ -212,7 +207,6 @@ class Model:
         self.add_x_forcing_constraint()
         self.add_valid_inequality()
 
-
         # Running gurobi to optimize model
         self.model.optimize()
 
@@ -227,6 +221,7 @@ class Model:
     def create_zero_column(self, iteration):
         self.model = gp.Model(f"Find feasible solution")
         self.model.setParam("MIPFocus", 1)
+        self.model.setParam("TimeLimit", 3600)
         # Stopping the model after one feasible solution is found
         self.model.setParam(GRB.Param.SolutionLimit, 5)
 
@@ -362,8 +357,6 @@ class Model:
             )
             , GRB.MINIMIZE
         )
-        #TODO: RE-IMPLEMENT THIS FROM THE PROSJEKOPPGAVE DIR
-        pass
 
 
     """
@@ -568,7 +561,7 @@ class Model:
                                     for l in range(self.l_size)
                                     for t_hat in range(min(t + 1, 60))
                                     for f in range(self.f_size))
-                         <= configs.MAB_COMPANY_LIMIT
+                         <= self.configs.MAB_COMPANY_LIMIT
                         , name="company MAB limit"
                     )
 
@@ -580,7 +573,7 @@ class Model:
                                 for t_hat in range(self.parameters.number_periods)
                                 for f in range(self.f_size)
                                 )
-                    >= initialization.parameters.EOH_ratio_requirement * configs.MAB_COMPANY_LIMIT
+                    >= initialization.parameters.EOH_ratio_requirement * self.configs.MAB_COMPANY_LIMIT
                     , name="EOH down"
                 )
 
@@ -681,7 +674,7 @@ class Model:
             consolidted_df = pd.concat([df for df in self.get_second_stage_variables_df()], keys=[i for i in range(self.l_size)])
 
 
-            path = configs.OUTPUT_DIR + f"/monolithic_model_scenario{configs.NUM_SCENARIOS}_sites{configs.NUM_LOCATIONS}.xlsx"
+            path = self.configs.OUTPUT_DIR + f"/monolithic_model_scenario{self.configs.NUM_SCENARIOS}_sites{self.configs.NUM_LOCATIONS}.xlsx"
             consolidted_df.to_excel(path)
             i+=1
 
@@ -747,7 +740,7 @@ class Model:
             plt.title(f"Biomass at site {self.sites[l].name} iteration {iteration}")
             plt.ylabel("Biomass")
             plt.xlabel("Periods")
-            path = f'{configs.OUTPUT_DIR}plot_{self.sites[l].name}_{iteration}.png'
+            path = f'{self.configs.OUTPUT_DIR}plot_{self.sites[l].name}_{iteration}.png'
             plt.savefig(path)
 
             plt.show()
@@ -790,7 +783,7 @@ class Model:
             plt.title(f"Biomass at site aggregated")
             plt.ylabel("Biomass")
             plt.xlabel("Periods")
-            path = configs.OUTPUT_DIR + f'/plot_aggregate.png'
+            path = self.configs.OUTPUT_DIR + f'/plot_aggregate.png'
             plt.savefig(path)
 
         plt.show()
@@ -833,7 +826,7 @@ class Model:
         plt.ylabel("Biomass")
         plt.xlabel("Periods")
 
-        path = configs.OUTPUT_DIR + f'/MAB_utilization.png'
+        path = self.configs.OUTPUT_DIR + f'/MAB_utilization.png'
         plt.savefig(path)
 
 
@@ -847,7 +840,7 @@ class Model:
         deploy_periods = self.get_deploy_period_list()
         column = data_classes.CGColumn(location, iteration)
         for t_hat in deploy_periods[location]: #TODO: Double check if this works
-            deploy_period_variables = data_classes.DeployPeriodVariables()
+            deploy_period_variables = data_classes.DeployPeriodVariables(self.configs)
             for f in range(self.f_size):
                 for t in range(self.t_size):
                     deploy_period_variables.y[f][t] = round(self.y[location,f , t].x, 2)
@@ -960,7 +953,7 @@ class Model:
         self.EOH_shadow_prices_df = shadow_prices_df_EOH
 
     def write_objective_value_to_file(self, time):
-        file_path = configs.OUTPUT_DIR + f"/monolithic_results_s{configs.NUM_SCENARIOS}_l{configs.NUM_LOCATIONS}.txt"
+        file_path = self.configs.OUTPUT_DIR + f"/monolithic_results_s{self.configs.NUM_SCENARIOS}_l{self.configs.NUM_LOCATIONS}.txt"
         with open(file_path, "a") as file:
             if self.model.status == GRB.OPTIMAL:
                 file.write(f"OBJECTIVE:{self.model.ObjVal}")

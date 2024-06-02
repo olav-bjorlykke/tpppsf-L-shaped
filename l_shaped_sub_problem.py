@@ -1,5 +1,4 @@
 from initialization.input_data import InputData
-import initialization.configs as configs
 import initialization.parameters as parameters
 from initialization.sites import Site
 from model import Model
@@ -7,7 +6,6 @@ import gurobipy as gp
 from gurobipy import GRB
 from data_classes import LShapedMasterProblemVariables, LShapedSubProblemDualVariables, CGDualVariablesFromMaster
 import pandas as pd
-import logging
 
 class LShapedSubProblem(Model):
     def __init__(self,
@@ -16,14 +14,15 @@ class LShapedSubProblem(Model):
                  site_index: int,                                 
                  fixed_variables: LShapedMasterProblemVariables,
                  cg_dual_variables: CGDualVariablesFromMaster,
-                 input_data = InputData()
+                 configs,
                  ):
         self.site = site
         self.scenario = scenario
         self.location = site_index
         self.fixed_variables = fixed_variables
         self.cg_dual_variables = cg_dual_variables
-        self.input_data = input_data
+        self.input_data = InputData(configs)
+        self.configs = configs
         self.s_size = configs.NUM_SCENARIOS
         self.f_size = configs.NUM_SMOLT_TYPES
         self.t_size = parameters.number_periods
@@ -63,7 +62,6 @@ class LShapedSubProblem(Model):
         self.add_biomass_development_constraints()
         self.add_w_forcing_constraint()
         #self.add_x_forcing_constraint()
-        #self.add_MAB_requirement_constraint()
         self.add_MAB_requirement_constraint_lp()
         self.add_UB_constraints()
         self.add_inactivity_constraint()
@@ -131,38 +129,20 @@ class LShapedSubProblem(Model):
         # These must be continous for us to be able to fetch the dual values out
         self.harvest_bin = self.model.addVars(self.t_size, vtype=GRB.BINARY, name="harvest_bin", lb=0)
         self.employ_bin = self.model.addVars(self.t_size, vtype=GRB.BINARY, name="Employ bin", lb=0)
-        self.employ_bin_granular = self.model.addVars(self.t_size, self.t_size, vtype=GRB.BINARY, name="Employ bin gran", lb=0, ub=1)
+        self.employ_bin_granular = self.model.addVars(self.t_size, self.t_size, vtype=GRB.BINARY, name="Employ bin gran", lb=0)
 
 
     """
     Objective
     """
-    def add_objective(self):
-        penalty_parameter = parameters.penalty_parameter_L_sub #This should not be very high -> It will lead to numeric instability
-        self.model.setObjective(
-            gp.quicksum(self.w[f,t_hat,t]
-                        for f in range(self.f_size)
-                        for t_hat in range(self.t_size)
-                        for t in range(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat],
-                                       min(t_hat + parameters.max_periods_deployed, self.t_size))
-                        )
-
-            - penalty_parameter * gp.quicksum(self.z_slack_1[t] for t in range(self.t_size))
-            - penalty_parameter * gp.quicksum(self.z_slack_2[t_hat, t] for t_hat in range(self.t_size) for t in range(t_hat, self.t_size))
-            - penalty_parameter * gp.quicksum(self.z_slack_3[t] for t in range(self.t_size))
-            # NOTE: This is not the range specified in the formulation, but it should work since
-            # the slack variable will always be 0 if it can with this formulation of the max problem.
-            , GRB.MAXIMIZE
-        )
     def add_mip_objective(self):
         self.model.setObjective(
             gp.quicksum(
-                #configs.SCENARIO_PROBABILITIES[self.scenario] *
+                self.configs.SCENARIO_PROBABILITIES[self.scenario] *
                 gp.quicksum(self.w[f, t_hat, t]
                             for t in range(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat],
                                   min(t_hat + parameters.max_periods_deployed, self.t_size))
                 )
-
                 - gp.quicksum(
                     self.x[f, t_hat, t] * self.cg_dual_variables.u_MAB[t][self.scenario]
                     for t in range(t_hat, min(t_hat + parameters.max_periods_deployed, self.t_size + 1))
@@ -177,7 +157,7 @@ class LShapedSubProblem(Model):
         penalty_parameter = parameters.penalty_parameter_L_sub #This should not be very high -> It will lead to numeric instability
         self.model.setObjective(
             gp.quicksum(
-                #configs.SCENARIO_PROBABILITIES[self.scenario] *
+                self.configs.SCENARIO_PROBABILITIES[self.scenario] *
                 gp.quicksum(
                     self.w[f, t_hat, t] for t in range(self.growth_sets.loc[(self.smolt_weights[f], f"Scenario {self.scenario}")][t_hat],
                                     min(t_hat + parameters.max_periods_deployed, self.t_size))
@@ -191,7 +171,7 @@ class LShapedSubProblem(Model):
                 for t_hat in range(self.t_size)
             )
             - penalty_parameter * gp.quicksum(self.z_slack_1[t] for t in range(self.t_size))
-            - penalty_parameter * 500 * gp.quicksum(self.z_slack_2[t_hat, t] for t_hat in range(self.t_size) for t in range(t_hat, self.t_size))
+            - penalty_parameter * 5000 * gp.quicksum(self.z_slack_2[t_hat, t] for t_hat in range(self.t_size) for t in range(t_hat, self.t_size))
             - penalty_parameter * gp.quicksum(self.z_slack_3[t] for t in range(self.t_size))
             , GRB.MAXIMIZE
         )
@@ -284,21 +264,23 @@ class LShapedSubProblem(Model):
             for t_hat in range(self.t_size)
             for t in range(t_hat)
         )
+        
     def add_valid_inequality_sub_problem(self):
-        self.model.addConstrs(
+        self.model.addConstrs((
             0.5 * (self.employ_bin[t - 1] + self.employ_bin[t - 2]) + self.fixed_variables.deploy_bin[t] <= 1
-            for t in range(2, self.t_size)
-        )
+            for t in range(parameters.min_fallowing_periods, self.t_size)
+        ), name="valid_inequality")
+
     def add_MAB_requirement_constraint(self):
         self.model.addConstrs((
             gp.quicksum(self.x[f, t_hat, t] for f in range(self.f_size)) - self.z_slack_2[t_hat,t] <= self.site.MAB_capacity
             for t_hat in range(self.t_size)
             for t in range(t_hat, min(t_hat + parameters.max_periods_deployed, self.t_size +1))
-        ), name="MAB_constraints"
+        ), name="MAB_constraints_mip"
         )
     def add_MAB_requirement_constraint_lp(self):
         self.model.addConstrs((
-            gp.quicksum(self.x[f, t_hat, t] for f in range(self.f_size)) - self.z_slack_2[t_hat,t] <= self.site.MAB_capacity * 0.9999
+            gp.quicksum(self.x[f, t_hat, t] for f in range(self.f_size)) - self.z_slack_2[t_hat,t] <= self.site.MAB_capacity * 0.995
             for t_hat in range(self.t_size)
             for t in range(t_hat, min(t_hat + parameters.max_periods_deployed, self.t_size +1))
         ), name="MAB_constraints"
@@ -310,6 +292,14 @@ class LShapedSubProblem(Model):
         self.model.addConstrs((
             self.employ_bin[t] <= 1 for t in range(self.t_size)), name="employ_bin_UB"
         )
+        self.model.addConstrs((
+            self.employ_bin_granular[t_hat, t] <= 1
+            for t in range(self.t_size)
+            for t_hat in range(self.t_size)
+        ), name="employ_bin_gran_UB"
+        )
+
+
     def add_w_forcing_constraint(self):
         self.model.addConstrs(
             # TODO:This is a forcing constraint that is not in the mathematical model, put it in the model somehow
@@ -352,26 +342,31 @@ class LShapedSubProblem(Model):
         rho_1 = []
         rho_2 = []
         rho_3 = []
-        rho_4 = 0 # unsure if this dual is needed 
+        rho_4 = [] 
         rho_5 = []
         rho_6 = []
         rho_7 = []
+        rho_8 = []
         for t in range(parameters.min_fallowing_periods, self.t_size):
-            rho_1.append(self.model.getConstrByName(f"fallowing_constriants_1[{t}]").getAttr("Pi"))
+            rho_1.append(round(self.model.getConstrByName(f"fallowing_constriants_1[{t}]").getAttr("Pi"), 5))
+            rho_4.append(round(self.model.getConstrByName(f"valid_inequality[{t}]").getAttr("Pi"), 5))
         for f in range(self.f_size):
             rho_2.append([])
             for t in range(self.t_size):
-                rho_2[f].append(self.model.getConstrByName(f"biomass_development_constraints_1[{f},{t}]").getAttr("Pi"))
+                rho_2[f].append(round(self.model.getConstrByName(f"biomass_development_constraints_1[{f},{t}]").getAttr("Pi"), 5))
         for t in range(self.t_size - parameters.max_fallowing_periods):
-            rho_3.append(self.model.getConstrByName(f"inactivity_constraints[{t}]").getAttr("Pi"))
+            rho_3.append(round(self.model.getConstrByName(f"inactivity_constraints[{t}]").getAttr("Pi"), 5))
         for t in range(self.t_size):
-            rho_6.append(self.model.getConstrByName(f"harvest_bin_UB[{t}]").getAttr("Pi"))
-            rho_7.append(self.model.getConstrByName(f"employ_bin_UB[{t}]").getAttr("Pi"))
+            rho_6.append(round(self.model.getConstrByName(f"harvest_bin_UB[{t}]").getAttr("Pi"), 5))
+            rho_7.append(round(self.model.getConstrByName(f"employ_bin_UB[{t}]").getAttr("Pi"), 5))
         for t_hat in range(self.t_size):
             rho_5.append([])
             for t in range(t_hat, min(t_hat + parameters.max_periods_deployed, self.t_size + 1)):
-                rho_5[t_hat].append(self.model.getConstrByName(f"MAB_constraints[{t_hat},{t}]").getAttr("Pi"))
-        return LShapedSubProblemDualVariables(rho_1, rho_2, rho_3, rho_4, rho_5, rho_6, rho_7)
+                rho_5[t_hat].append(round(self.model.getConstrByName(f"MAB_constraints[{t_hat},{t}]").getAttr("Pi"), 5))
+            rho_8.append([])
+            for t in range(self.t_size):
+                rho_8[t_hat].append(round(self.model.getConstrByName(f"employ_bin_gran_UB[{t_hat},{t}]").getAttr("Pi"), 5))
+        return LShapedSubProblemDualVariables(rho_1, rho_2, rho_3, rho_4, rho_5, rho_6, rho_7, rho_8)
 
     def print_variable_values(self):
         f_list = []
@@ -396,4 +391,4 @@ class LShapedSubProblem(Model):
             f_list.append(pd.concat(t_hat_list, keys=[i for i in range(self.t_size)]))
         df = pd.concat(f_list, keys=[i for i in range(self.f_size)])
         df_filtered = df.loc[~(df[["X", "W", "Employ_bin_gran"]] == 0).all(axis=1)]
-        df_filtered.to_excel(f"{configs.OUTPUT_DIR}variable_values{self.scenario}.xlsx")
+        df_filtered.to_excel(f"{self.configs.OUTPUT_DIR}variable_values{self.scenario}.xlsx")
