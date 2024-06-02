@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import random
 import initialization.parameters as parameters
+import initialization.configs as configs
 
 class InputData:
     """
@@ -126,6 +127,7 @@ class InputData:
             base_temps = base_temperature_df.iloc[i]
             scenarios_temps_list = []
             for j in range(self.configs.NUM_SCENARIOS):
+
                 scenario_temps = [base_temps[t] * random.uniform(0.90,1.05) for t in range(len(base_temps))]
                 scenarios_temps_list.append(scenario_temps)
 
@@ -138,3 +140,4 @@ class InputData:
         scenario_temperatures_per_site_df = pd.concat([df for df in scenario_temperatures], keys=sites)
 
         return scenario_temperatures_per_site_df
+
