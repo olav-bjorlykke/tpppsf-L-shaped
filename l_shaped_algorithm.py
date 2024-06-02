@@ -3,6 +3,7 @@ from l_shaped_sub_problem import LShapedSubProblem
 from data_classes import CGColumn, DeployPeriodVariables
 from gurobipy import GRB
 import logging
+import multiprocessing
 
 class LShapedAlgorithm:
     def __init__(self, site, site_index, configs, node_label, input_data) -> None:
@@ -69,6 +70,66 @@ class LShapedAlgorithm:
         self.subproblems = subproblems
         return True
 
+    def solve_with_parallelization(self, cg_dual_variables):
+        self.master.initialize_model(self.node_label, cg_dual_variables)                                                                    #Create the gurobi model object within the master-problem class
+        #Solve the master problem with no cuts
+        self.master.solve()
+        iteration_counter = 1
+
+        if self.master.model.status != GRB.OPTIMAL:
+            self.master.model.computeIIS()
+            self.master.model.write("L-shaped-master-problem.ilp")
+            return False
+
+        # Sets the old master problem to be none in the first iteration
+        old_master_problem_solution = None
+        # new master problem solution set to be the solution with no cuts, this is an Lshaped data class object
+        new_master_problem_solution = self.master.get_variable_values()
+        #Initializes an empyt list for dual variable tracking
+        dual_variables = [None for _ in range(self.configs.NUM_SCENARIOS)]
+        while new_master_problem_solution != old_master_problem_solution:
+            iteration_counter += 1
+            #Sets the previous solution to be the solution found in the last iteration, before finding a new solution
+            old_master_problem_solution = new_master_problem_solution
+            #Solve the sub-problem for every scenario, with new fixed variables from master problem
+            processes = []
+            dual_variables_queue = multiprocessing.Queue()
+            for s in range(self.configs.NUM_SCENARIOS):
+                p = multiprocessing.Process(target=solve_sub_problem, args=(s, self.site, self.l, new_master_problem_solution, cg_dual_variables, self.configs, iteration_counter, dual_variables_queue))
+                processes.append(p)
+                p.start()
+            unsorted_dual_variables = [dual_variables_queue.get() for _ in processes]
+
+            for p in processes:
+                p.join()
+
+            for dual_variable in unsorted_dual_variables:
+                dual_variables[dual_variable[0]] = dual_variable[1]
+
+
+            #Add new optimality cut, based on dual variables
+            self.master.add_optimality_cuts(dual_variables)
+            #Solve master problem with new cuts, and store the variable values to be passed to sub-problems in next iteration
+            self.master.solve()
+            self.ls_logger.info(f"{iteration_counter} master:{self.master.model.objVal}")
+            new_master_problem_solution = self.master.get_variable_values()
+
+        #Once the L-shaped terminates, we solve it as a MIP to generate an integer feasible solution
+        subproblems = [LShapedSubProblem(scenario=s, site=self.site, site_index=self.l,
+                                         fixed_variables=new_master_problem_solution,
+                                         cg_dual_variables=cg_dual_variables, configs=self.configs) for s in
+                       range(self.configs.NUM_SCENARIOS)]
+        for s in range(self.configs.NUM_SCENARIOS):
+            subproblems[s].update_model_to_mip(new_master_problem_solution)
+            subproblems[s].solve()
+            if subproblems[s].model.status != GRB.OPTIMAL:
+                subproblems[s].model.computeIIS()
+                subproblems[s].model.write(f"subsub{s}_mip.ilp")
+                subproblems[s].model.write(f"subsub{s}_mip.lp")
+                return False
+        self.subproblems = subproblems
+        return True
+
 
     def get_column_object(self, iteration):
         column = CGColumn(self.l, iteration)
@@ -105,6 +166,19 @@ class LShapedAlgorithm:
         self.ls_logger.addHandler(file_handler1)
 
 
+def solve_sub_problem(s, site, site_index, new_master_problem_solution, cg_dual_variables, configs, iteration, queue):
+    subproblem = LShapedSubProblem(scenario=s, site=site, site_index=site_index,
+                                   fixed_variables=new_master_problem_solution, cg_dual_variables=cg_dual_variables,
+                                   configs=configs)
+    subproblem.initialize_model()
+    subproblem.update_model(new_master_problem_solution)
+    subproblem.solve()
+    if subproblem.model.status != GRB.OPTIMAL:
+        subproblem.model.computeIIS()
+        subproblem.model.write(f"subsub{s}.ilp")
+    # Fetch dual variables from sub-problem, and write to list so they can be passed to the master problem
+    dual_variables = subproblem.get_dual_values()
+    queue.put((s, dual_variables))
 
 
 

@@ -29,7 +29,7 @@ def run_b_and_p_l_shaped(configs, input_data):
 def run_ls_single_site(site, site_index, configs, node_label, input_data, cg_dual_variables):
     ls = LShapedAlgorithm(site, site_index, configs, node_label, input_data)
     start = time.perf_counter()
-    ls.solve(cg_dual_variables)
+    ls.solve_with_parallelization(cg_dual_variables)
     column = ls.get_column_object(iteration=1)
     column.write_to_file()
     end = time.perf_counter()
@@ -65,26 +65,6 @@ def main():
 
         else:
             run_monolithic_model(configs)
-
-def single_site_main():
-    configs = Configs()
-    input_data = InputData(configs)
-    sites = Sites(configs)
-    node_label = NodeLabel(configs)
-    branched_indexes = sites.NODE_INIT_LIST
-    for indexes in branched_indexes:
-        node_label.up_branching_indices[indexes[0]].append(indexes[1])
-    cg_dual_variables = CGDualVariablesFromMaster(configs)
-
-    instance = input("Input 'ls' for LSHAPED, input 'm' for monolithic model: ")
-    if instance == "ls":
-        run_ls_single_site(sites.SITE_LIST[0], 0, configs, node_label, input_data, cg_dual_variables)
-
-    elif instance == "m":
-        run_gb_single_site(0, configs)
-
-    else:
-        print("Chosen instance does not exist")
 
 
 if __name__ == '__main__':
