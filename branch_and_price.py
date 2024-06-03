@@ -155,7 +155,12 @@ class BranchAndPrice:
         previous_dual_variables = CGDualVariablesFromMaster(self.configs)
         previous_dual_variables.u_MAB[0][0] = 10
         dual_variables = CGDualVariablesFromMaster(self.configs)
-        while previous_dual_variables != dual_variables or self.master.iterations_k < 8:
+        prev_objective = 100000000000
+        objective = 99999999
+        iterations = 0
+        while (previous_dual_variables != dual_variables and (objective - prev_objective > 0.1)) or iterations < 3:
+            iterations += 1
+            prev_objective = objective
             previous_dual_variables = dual_variables
             new_columns = self.cg_run_sub_problems_in_parallel(dual_variables, node_label)
             for column in new_columns:
@@ -167,7 +172,8 @@ class BranchAndPrice:
                 self.master_logger.info(f"{self.master.iterations_k}: INFEASIBLE!")
                 self.master.iterations_k -= 1
                 return False
-            self.master_logger.info(f"{self.master.iterations_k}: objective = {self.master.model.objVal}")                    
+            self.master_logger.info(f"{self.master.iterations_k}: objective = {self.master.model.objVal}")
+            objective = self.master.model.objVal
             dual_variables = self.master.get_dual_variables()
         return True
 
@@ -179,8 +185,10 @@ class BranchAndPrice:
         previous_dual_variables.u_MAB[0][0] = 10
         dual_variables = CGDualVariablesFromMaster(self.configs)
         sub_problems = [LShapedAlgorithm(self.sites.SITE_LIST[i], i, self.configs, node_label, self.input_data) for i in range(len(self.sites.SITE_LIST))]
-        
-        while previous_dual_variables != dual_variables or self.master.iterations_k < 8:
+        prev_objective = 100000000000
+        objective = 99999999
+        while (previous_dual_variables != dual_variables and (objective - prev_objective > 1)) or self.master.iterations_k < 8:
+            prev_objective = objective
             previous_dual_variables = dual_variables
             for i, sub in enumerate(sub_problems):
                 self.general_logger.info(f"## solved subproblem {i}, iteration {self.master.iterations_k} ")
@@ -200,7 +208,8 @@ class BranchAndPrice:
                 self.master_logger.info(f"{self.master.iterations_k}: status: {self.master.model.status}")
                 self.master.iterations_k -= 1
                 return False
-            self.master_logger.info(f"{self.master.iterations_k}: objective = {self.master.model.objVal}")                    
+            self.master_logger.info(f"{self.master.iterations_k}: objective = {self.master.model.objVal}")
+            objective = self.master.model.objVal
             dual_variables = self.master.get_dual_variables()
             dual_variables.write_to_file()
 
@@ -211,7 +220,12 @@ class BranchAndPrice:
         previous_dual_variables = CGDualVariablesFromMaster(self.configs)
         previous_dual_variables.u_MAB[0][0] = 10
         dual_variables = CGDualVariablesFromMaster(self.configs)
-        while previous_dual_variables != dual_variables or self.master.iterations_k < 8:
+        prev_objective = 100000000000
+        objective = 999999999999
+        iterations = 0
+        while (previous_dual_variables != dual_variables and (objective - prev_objective > 1)) or iterations < 3:
+            iterations += 1
+            prev_objective = objective
             previous_dual_variables = dual_variables
             new_columns = self.run_sub_problems_in_parallel(dual_variables, node_label)
             for column in new_columns:
@@ -225,6 +239,7 @@ class BranchAndPrice:
                 return False
             self.master_logger.info(f"{self.master.iterations_k}: objective = {self.master.model.objVal}")
             dual_variables = self.master.get_dual_variables()
+            objective = self.master.model.objVal
             dual_variables.write_to_file()
         return True
 
@@ -232,6 +247,7 @@ class BranchAndPrice:
         initial = Model(self.sites.SITE_LIST, self.configs)
         initial_columns = initial.create_zero_column(0)
         initial_columns2 = initial.create_initial_columns(1)
+
         for column in initial_columns:
             self.master.columns[(column.site, column.iteration_k)] = column
         for column in initial_columns2:
