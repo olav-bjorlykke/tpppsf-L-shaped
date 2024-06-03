@@ -37,7 +37,7 @@ class BranchAndPrice:
             current_node = q.pop(0)
             feasible = False
             if l_shaped:
-                feasible = self.column_generation_ls_parallel(current_node)
+                feasible = self.column_generation_ls(current_node)
             else:
                 feasible = self.column_generation_parallel(current_node)
 
