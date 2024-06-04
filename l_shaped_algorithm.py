@@ -43,7 +43,9 @@ class LShapedAlgorithm:
             #Sets the previous solution to be the solution found in the last iteration, before finding a new solution
             old_master_problem_solution = new_master_problem_solution
             #Solve the sub-problem for every scenario, with new fixed variables from master problem
+            subs_start = time.perf_counter()
             for s in range(self.configs.NUM_SCENARIOS):
+
                 subproblems[s].update_model(new_master_problem_solution)
                 subproblems[s].solve()
                 if subproblems[s].model.status != GRB.OPTIMAL:
@@ -52,6 +54,7 @@ class LShapedAlgorithm:
                 self.ls_logger.info(f"{iteration_counter} Sub: {s}: Objective: {subproblems[s].model.objVal}")
                 #Fetch dual variables from sub-problem, and write to list so they can be passed to the master problem
                 dual_variables[s] = subproblems[s].get_dual_values()
+            subs_end = time.perf_counter()
             #Add new optimality cut, based on dual variables
             self.master.add_optimality_cuts(dual_variables)
             #Solve master problem with new cuts, and store the variable values to be passed to sub-problems in next iteration
@@ -96,6 +99,7 @@ class LShapedAlgorithm:
             #Solve the sub-problem for every scenario, with new fixed variables from master problem
             processes = []
             dual_variables_queue = multiprocessing.Queue()
+            subs_start = time.perf_counter()
             for s in range(self.configs.NUM_SCENARIOS):
                 p = multiprocessing.Process(target=solve_sub_problem, args=(s, self.site, self.l, new_master_problem_solution, cg_dual_variables, self.configs, iteration_counter, dual_variables_queue))
                 processes.append(p)
@@ -104,6 +108,7 @@ class LShapedAlgorithm:
 
             for p in processes:
                 p.join()
+            subs_end = time.perf_counter()
 
             for dual_variable in unsorted_dual_variables:
                 dual_variables[dual_variable[0]] = dual_variable[1]
@@ -112,9 +117,11 @@ class LShapedAlgorithm:
             #Add new optimality cut, based on dual variables
             self.master.add_optimality_cuts(dual_variables)
             #Solve master problem with new cuts, and store the variable values to be passed to sub-problems in next iteration
+            master_start = time.perf_counter()
             self.master.solve()
+            master_end = time.perf_counter()
             checkpoint = time.perf_counter()
-            self.ls_logger.info(f"{iteration_counter} master:{self.master.model.objVal} / time spent: {checkpoint - start}")
+            self.ls_logger.info(f"{iteration_counter} master:{self.master.model.objVal} / time spent: {checkpoint - start} / Time in subs: {subs_end - subs_start} / Time in Master {master_end - master_start}")
             new_master_problem_solution = self.master.get_variable_values()
         self.ls_logger.info(f"{iteration_counter}: Solved LP-relaxation")
 
@@ -133,6 +140,8 @@ class LShapedAlgorithm:
                 return False
         self.ls_logger.info(f"{iteration_counter}: generated MIP-columns")
         self.subproblems = subproblems
+        column = self.get_column_object(0)
+        column.write_to_file(self.configs)
         return True
 
 
