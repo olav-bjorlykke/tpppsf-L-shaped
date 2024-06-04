@@ -37,7 +37,7 @@ class BranchAndPrice:
             current_node = q.pop(0)
             feasible = False
             if l_shaped:
-                feasible = self.column_generation_ls(current_node)
+                feasible = self.column_generation_ls_parallel(current_node)
             else:
                 feasible = self.column_generation_parallel(current_node)
 
@@ -188,7 +188,7 @@ class BranchAndPrice:
         prev_objective = 100000000000
         objective = 99999999
         iterations = 0
-        while (previous_dual_variables != dual_variables and (objective - prev_objective > 1)) or iterations < 4:
+        while (previous_dual_variables != dual_variables and (objective - prev_objective > 1)) or iterations < 5:
             iterations += 1
             prev_objective = objective
             previous_dual_variables = dual_variables
