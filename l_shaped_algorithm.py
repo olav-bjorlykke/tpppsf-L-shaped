@@ -1,3 +1,4 @@
+import time
 from l_shaped_master_problem import LShapedMasterProblem
 from l_shaped_sub_problem import LShapedSubProblem
 from data_classes import CGColumn, DeployPeriodVariables
@@ -71,6 +72,7 @@ class LShapedAlgorithm:
         return True
 
     def solve_with_parallelization(self, cg_dual_variables):
+        start = time.perf_counter()
         self.master.initialize_model(self.node_label, cg_dual_variables)                                                                    #Create the gurobi model object within the master-problem class
         #Solve the master problem with no cuts
         self.master.solve()
@@ -111,8 +113,10 @@ class LShapedAlgorithm:
             self.master.add_optimality_cuts(dual_variables)
             #Solve master problem with new cuts, and store the variable values to be passed to sub-problems in next iteration
             self.master.solve()
-            self.ls_logger.info(f"{iteration_counter} master:{self.master.model.objVal}")
+            checkpoint = time.perf_counter()
+            self.ls_logger.info(f"{iteration_counter} master:{self.master.model.objVal} / time spent: {checkpoint - start}")
             new_master_problem_solution = self.master.get_variable_values()
+        self.ls_logger.info(f"{iteration_counter}: Solved LP-relaxation")
 
         #Once the L-shaped terminates, we solve it as a MIP to generate an integer feasible solution
         subproblems = [LShapedSubProblem(scenario=s, site=self.site, site_index=self.l,
@@ -124,9 +128,10 @@ class LShapedAlgorithm:
             subproblems[s].solve()
             if subproblems[s].model.status != GRB.OPTIMAL:
                 subproblems[s].model.computeIIS()
-                subproblems[s].model.write(f"subsub{s}_mip.ilp")
-                subproblems[s].model.write(f"subsub{s}_mip.lp")
+                subproblems[s].model.write(f"{self.configs.OUTPUT_DIR}subsub{s}_mip.ilp")
+                subproblems[s].model.write(f"{self.configs.OUTPUT_DIR}subsub{s}_mip.lp")
                 return False
+        self.ls_logger.info(f"{iteration_counter}: generated MIP-columns")
         self.subproblems = subproblems
         return True
 

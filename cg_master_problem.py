@@ -53,6 +53,8 @@ class CGMasterProblem:
     def update_and_solve_as_mip(self, node_label):
         self.model.remove(self.model.getConstrs())
         self.model.remove(self.model.getVars())
+        # Stopping the model after 1800 seconds
+        self.model.setParam("TimeLimit", 1800)
         self.declare_mip_variables()
         self.set_objective()
         self.add_MAB_company_constraint()
@@ -61,6 +63,8 @@ class CGMasterProblem:
         self.add_variable_tracking_constraints()
         self.add_branching_constraints(node_label)
         self.model.optimize()
+        #Resetting the time limit so as not to interfere with other instances
+        self.model.setParam("TimeLimit", 200000)
 
     """
     Add objective

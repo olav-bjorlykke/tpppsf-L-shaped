@@ -187,7 +187,9 @@ class BranchAndPrice:
         sub_problems = [LShapedAlgorithm(self.sites.SITE_LIST[i], i, self.configs, node_label, self.input_data) for i in range(len(self.sites.SITE_LIST))]
         prev_objective = 100000000000
         objective = 99999999
-        while (previous_dual_variables != dual_variables and (objective - prev_objective > 1)) or self.master.iterations_k < 8:
+        iterations = 0
+        while (previous_dual_variables != dual_variables and (objective - prev_objective > 1)) or iterations < 5:
+            iterations += 1
             prev_objective = objective
             previous_dual_variables = dual_variables
             for i, sub in enumerate(sub_problems):
