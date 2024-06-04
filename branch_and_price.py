@@ -264,7 +264,7 @@ class BranchAndPrice:
         for column in initial_columns:
             self.master.columns[(column.site, column.iteration_k)] = column
         for column in initial_columns2:
-           self.master.columns[(column.site, column.iteration_k)] = column
+            self.master.columns[(column.site, column.iteration_k)] = column
         self.master.initialize_model()
         self.master.iterations_k = 2
 

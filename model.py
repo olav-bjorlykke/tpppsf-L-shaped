@@ -142,6 +142,7 @@ class Model:
         start_time = time.perf_counter()
         self.model = gp.Model(f"Single site solution")
         self.model.setParam('OutputFlag', 0)
+        self.model.setParam('TimeLimit', 1500)
 
         # Declaing variables
         self.declare_variables()
@@ -182,7 +183,7 @@ class Model:
         self.model = gp.Model(f"Find feasible solution")
 
         #Telling the model to focus on finding a feasible solution
-        self.model.setParam("TimeLimit", 3600)
+        self.model.setParam("TimeLimit", 5000)
         #Stopping the model after one feasible solution is found
         self.model.setParam(GRB.Param.SolutionLimit, 5)
 
