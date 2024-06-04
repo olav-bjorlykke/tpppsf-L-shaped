@@ -1,3 +1,5 @@
+import time
+
 from cg_master_problem import CGMasterProblem, CGDualVariablesFromMaster
 from initialization.sites import Sites
 from model import Model
@@ -162,17 +164,21 @@ class BranchAndPrice:
             iterations += 1
             prev_objective = objective
             previous_dual_variables = dual_variables
+            sub_problems_start = time.perf_counter()
             new_columns = self.cg_run_sub_problems_in_parallel(dual_variables, node_label)
+            sub_problems_end = time.perf_counter()
             for column in new_columns:
                 self.master.columns[(column.site, self.master.iterations_k)] = column
                 self.sub_logger.info(f"iteration {self.master.iterations_k} / site {column.site}: {column.calculate_reduced_cost(self.configs, dual_variables)}")
-            self.master.update_model(node_label) 
+            self.master.update_model(node_label)
+            master_start_time = time.perf_counter()
             self.master.solve()
+            master_end_time = time.perf_counter()
             if self.master.model.status == GRB.INF_OR_UNBD:     # To prevent errors, handled by pruning in B&P
                 self.master_logger.info(f"{self.master.iterations_k}: INFEASIBLE!")
                 self.master.iterations_k -= 1
                 return False
-            self.master_logger.info(f"{self.master.iterations_k}: objective = {self.master.model.objVal}")
+            self.master_logger.info(f"{self.master.iterations_k}: objective = {self.master.model.objVal} / time in master: {master_end_time - master_start_time} / time in subs: {sub_problems_end - sub_problems_start} ")
             objective = self.master.model.objVal
             dual_variables = self.master.get_dual_variables()
         return True
@@ -229,17 +235,22 @@ class BranchAndPrice:
             iterations += 1
             prev_objective = objective
             previous_dual_variables = dual_variables
+            sub_problems_start = time.perf_counter()
             new_columns = self.run_sub_problems_in_parallel(dual_variables, node_label)
+            sub_problems_end = time.perf_counter()
             for column in new_columns:
                 self.master.columns[(column.site, self.master.iterations_k)] = column
                 self.sub_logger.info(f"iteration {self.master.iterations_k} / site {column.site}: {column.calculate_reduced_cost(self.configs, dual_variables)}")  # TODO: this does not account for solving the subsubs as MIPs
             self.master.update_model(node_label)
+            master_start_time = time.perf_counter()
             self.master.solve()
+            master_end_time = time.perf_counter()
             if self.master.model.status != GRB.OPTIMAL:  # To prevent errors, handled by pruning in B&P
                 self.master_logger.info(f"{self.master.iterations_k}: status: {self.master.model.status}")
                 self.master.iterations_k -= 1
                 return False
-            self.master_logger.info(f"{self.master.iterations_k}: objective = {self.master.model.objVal}")
+            self.master_logger.info(
+                f"{self.master.iterations_k}: objective = {self.master.model.objVal} / time in master: {master_end_time - master_start_time} / time in subs: {sub_problems_end - sub_problems_start} ")
             dual_variables = self.master.get_dual_variables()
             objective = self.master.model.objVal
             dual_variables.write_to_file()
