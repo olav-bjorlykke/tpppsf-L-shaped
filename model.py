@@ -142,7 +142,6 @@ class Model:
         start_time = time.perf_counter()
         self.model = gp.Model(f"Single site solution")
         self.model.setParam('OutputFlag', 0)
-        self.model.setParam('TimeLimit', 1500)
 
         # Declaing variables
         self.declare_variables()
