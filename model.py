@@ -57,8 +57,9 @@ class Model:
     Solver functions
     """
     def solve_and_print_model(self):
-        self.model = gp.Model(f"Single site solution")
+        self.model = gp.Model(f"full_model")
         self.model.setParam("LogFile", f"{self.configs.OUTPUT_DIR}monolithic_log")
+        self.model.setParam('OutputFlag', 0)
 
         #Declaing variables
         self.declare_variables()
@@ -90,6 +91,52 @@ class Model:
             self.plot_solutions_x_values_per_site()
             self.plot_solutions_x_values_aggregated()
             self.iterations += 1
+
+
+
+        #Putting solution into variables for export
+
+    def solve_with_locked_first_stage_vars(self, columns, iteration=0):
+        self.model = gp.Model(f"Locked Model")
+        self.model.setParam('OutputFlag', 0)
+
+
+        #Declaing variables
+        self.declare_variables()
+
+        #Setting objective
+        self.set_objective()
+
+        #Adding constraints
+        self.add_smolt_deployment_constraints()
+        self.add_fallowing_constraints()
+        self.add_inactivity_constraints()
+        self.add_harvesting_constraints()
+        self.add_biomass_development_constraints()
+        self.add_MAB_requirement_constraint()
+        self.add_initial_condition_constraint()
+        self.add_forcing_constraints()
+        self.add_MAB_company_requirement_constraint()
+        self.add_end_of_horizon_constraint()
+        self.add_employ_bin_forcing_constraints()
+        self.add_x_forcing_constraint()
+        self.add_valid_inequality()
+        self.lock_first_stage_variables(columns)
+
+        #Running gurobi to optimize model
+        self.model.optimize()
+
+        #Printing solution
+        if self.model.status == GRB.OPTIMAL:
+            self.print_solution_to_excel()
+            self.plot_solutions_x_values_per_site()
+            self.plot_solutions_x_values_aggregated()
+            self.iterations += 1
+            print(f"{iteration}: OK")
+
+        elif self.model.status == GRB.INF_OR_UNBD:
+            print(f"{iteration}: infeasible")
+
 
 
 
@@ -577,7 +624,6 @@ class Model:
                     , name="EOH down"
                 )
 
-
     def add_initial_condition_constraint(self):
         for l in range(self.l_size):
             if self.sites[l].init_biomass > 1:
@@ -662,6 +708,15 @@ class Model:
             for t in range(self.t_size)
             for l in range(self.l_size)
         )
+
+    def lock_first_stage_variables(self, columns):
+        for l, column in enumerate(columns):
+            deploy_periods = column.production_schedules.keys()
+            for deploy_period in deploy_periods:
+                self.model.addConstrs(
+                    self.y[l, f, deploy_period] == column.production_schedules[deploy_period].y[f][deploy_period]
+                    for f in range(self.f_size)
+                )
 
     """
     Printing and exporting functions

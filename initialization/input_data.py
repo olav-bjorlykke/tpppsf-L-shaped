@@ -116,7 +116,11 @@ class InputData:
         :return: scenario_temperatures_per_site_df - a multi-index dataframe containing temperatures for every scenario that is generated
         """
         #Declaring variables for code to be more readable
-        random.seed(parameters.random_seed)
+        if self.configs.RANDOM_SCENARIOS:
+            random.seed(random.random())
+        else:
+            random.seed(parameters.random_seed)
+
         scenario_temperatures = []                              #A list for containing dataframes of scenario temperatures for each site, later to be put into the concatenated dataframe
         sites = base_temperature_df.index                       #A list containing the name of all sites, later to be used as indexes for the concatenated dataframe
 

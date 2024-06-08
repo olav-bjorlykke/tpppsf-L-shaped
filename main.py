@@ -9,7 +9,7 @@ from branch_and_price import BranchAndPrice
 from initialization.sites import Sites
 from l_shaped_algorithm import LShapedAlgorithm
 from data_classes import CGDualVariablesFromMaster
-
+import logging
 
 
 def run_monolithic_model(configs):
@@ -20,7 +20,6 @@ def run_monolithic_model(configs):
 def run_b_and_p_gurobi(configs, input_data):
     bp = BranchAndPrice(configs, input_data)
     bp.branch_and_price(l_shaped=False)
-
 
 def run_b_and_p_l_shaped(configs, input_data):
     bp = BranchAndPrice(configs, input_data)
@@ -40,6 +39,38 @@ def run_gb_single_site(configs):
     model = Model(sites.SITE_LIST, configs)
     model.solve_as_single_site_mip()
 
+def run_sensitivity_analysis():
+    configs = Configs()
+    logger = set_up_logging(configs)
+    input_data = InputData(configs)
+    sites = Sites(configs)
+    model = Model(sites.SITE_LIST, configs)
+    model.solve_and_print_model()
+    columns = model.get_columns_from_multisite_solution(0)
+    for i in range(100):
+        instance = configs.INSTANCE
+        algorithm = configs.ALGORITHM
+        configs = Configs(scenarios=1, instance=instance, algorithm=algorithm, random_scenearios=True)
+        new_sites = Sites(configs)
+        model = Model(new_sites.SITE_LIST, configs)
+        model.solve_and_print_model()
+        optimal_objective = model.model.objVal
+        model.solve_with_locked_first_stage_vars(columns, i)
+        locked_objective = model.model.objVal
+        locked_model_status = model.model.status
+        logger.info(f"Iteration {i}: optimal objective = {optimal_objective}, locked objective = {locked_objective}, difference absolute = {optimal_objective-locked_objective}, difference_percentage = {(optimal_objective - locked_objective)/optimal_objective},  status = {locked_model_status}")
+
+def set_up_logging(configs):
+    path = configs.LOG_DIR
+    logging.basicConfig(
+        level=logging.INFO,
+        filemode='a'  # Set filemode to 'w' for writing (use 'a' to append)
+    )
+    general_logger = logging.getLogger(f"general_logger")
+    file_handler = logging.FileHandler(f'{path}logger.log')
+    file_handler.setLevel(logging.INFO)
+    general_logger.addHandler(file_handler)
+    return general_logger
 
 def main():
     configs = Configs()
@@ -68,7 +99,7 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    run_sensitivity_analysis()
 
 
 
