@@ -105,7 +105,7 @@ class LShapedAlgorithm:
                 processes.append(p)
                 p.start()
 
-                if len(processes) >= multiprocessing.cpu_count:
+                if len(processes) >= multiprocessing.cpu_count():
                     for p in processes:
                         p.join()
                     processes = []
