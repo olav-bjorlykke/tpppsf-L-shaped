@@ -40,26 +40,50 @@ def run_gb_single_site(configs):
     model.solve_as_single_site_mip()
 
 def run_sensitivity_analysis():
+    #Solving the model stochastically
     configs = Configs()
     logger = set_up_logging(configs)
     input_data = InputData(configs)
     sites = Sites(configs)
     model = Model(sites.SITE_LIST, configs)
     model.solve_and_print_model()
-    columns = model.get_columns_from_multisite_solution(0)
-    for i in range(100):
+    stochastic_value_columns = model.get_columns_from_multisite_solution(0)
+
+    #Solving the model with expected values
+    instance = configs.INSTANCE
+    algorithm = configs.ALGORITHM
+    configs = Configs(scenarios=1, instance=instance, algorithm=algorithm, average_values=True)
+    logger = set_up_logging(configs)
+    sites = Sites(configs)
+    model = Model(sites.SITE_LIST, configs)
+    model.solve_and_print_model()
+    expected_value_columns = model.get_columns_from_multisite_solution(0)
+
+
+    for i in range(10):
+        #Creating new scenario
         instance = configs.INSTANCE
         algorithm = configs.ALGORITHM
         configs = Configs(scenarios=1, instance=instance, algorithm=algorithm, random_scenearios=True)
         new_sites = Sites(configs)
+
+        #Solving as if perfect information was available
         model = Model(new_sites.SITE_LIST, configs)
         model.solve_and_print_model()
-        optimal_objective = model.model.objVal
-        model.solve_with_locked_first_stage_vars(columns, i)
-        locked_objective = model.model.objVal
-        locked_model_status = model.model.status
-        logger.info(f"Iteration {i}: optimal objective = {optimal_objective}, locked objective = {locked_objective}, difference absolute = {optimal_objective-locked_objective}, difference_percentage = {(optimal_objective - locked_objective)/optimal_objective},  status = {locked_model_status}")
+        perfect_information_solution = model.model.objVal
 
+        #Solving for the given scenario with first stage variables locked to the stochastic solution
+        model.solve_with_locked_first_stage_vars(stochastic_value_columns, i)
+        stochastic_solution = model.model.objVal
+        stochastic_model_status = model.model.status
+
+        #Solving for the given scenario with first-stage variables locked to the expected value solution
+        model.solve_with_locked_first_stage_vars(expected_value_columns, i)
+        expected_value_solution = model.model.objVal
+        expected_value_solution_status = model.model.status
+
+        logger.info(f"Iteration {i}: PIS = {perfect_information_solution}, Stochastic Solution = {stochastic_solution}, EV solution = {expected_value_solution},  SS status = {stochastic_model_status}, EV status: {expected_value_solution_status}")
+        logger.info(f"Iteration {i}: VSS = {stochastic_solution - expected_value_solution}, VSS percentage = {(stochastic_solution - expected_value_solution)/stochastic_solution}")
 def set_up_logging(configs):
     path = configs.LOG_DIR
     logging.basicConfig(
@@ -99,7 +123,7 @@ def main():
 
 
 if __name__ == '__main__':
-    run_sensitivity_analysis()
+    main()
 
 
 

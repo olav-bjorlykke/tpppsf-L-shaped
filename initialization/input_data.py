@@ -125,20 +125,35 @@ class InputData:
         sites = base_temperature_df.index                       #A list containing the name of all sites, later to be used as indexes for the concatenated dataframe
 
         #Iterating through all sites
-        for i in range(sites.size):
-            #Generating a Dataframe containing all scenario temperatures for that site
-            #site_df = pd.DataFrame([base_temperature_df.iloc[i] * self.scenarios_variations[j] for j in range(self.num_scenarios)], index=[f"Scenario {j}" for j in range(self.num_scenarios)])
-            base_temps = base_temperature_df.iloc[i]
-            scenarios_temps_list = []
-            for j in range(self.configs.NUM_SCENARIOS):
+        if self.configs.AVERAGE_VALUES:
+            for i in range(sites.size):
+                #Generating a Dataframe containing all scenario temperatures for that site
+                #site_df = pd.DataFrame([base_temperature_df.iloc[i] * self.scenarios_variations[j] for j in range(self.num_scenarios)], index=[f"Scenario {j}" for j in range(self.num_scenarios)])
+                base_temps = base_temperature_df.iloc[i]
+                scenarios_temps_list = []
+                for j in range(self.configs.NUM_SCENARIOS):
 
-                scenario_temps = [base_temps[t] * random.uniform(0.90,1.05) for t in range(len(base_temps))]
-                scenarios_temps_list.append(scenario_temps)
+                    scenario_temps = [base_temps[t] for t in range(len(base_temps))]
+                    scenarios_temps_list.append(scenario_temps)
 
 
-            site_df = pd.DataFrame(scenarios_temps_list, index=[f"Scenario {j}" for j in range(self.num_scenarios)])
-            #Appending the site with scenario temperatures to the list storig thedataframes
-            scenario_temperatures.append(site_df)
+                site_df = pd.DataFrame(scenarios_temps_list, index=[f"Scenario {j}" for j in range(self.num_scenarios)])
+                #Appending the site with scenario temperatures to the list storig thedataframes
+                scenario_temperatures.append(site_df)
+
+        else:
+            for i in range(sites.size):
+                # Generating a Dataframe containing all scenario temperatures for that site
+                # site_df = pd.DataFrame([base_temperature_df.iloc[i] * self.scenarios_variations[j] for j in range(self.num_scenarios)], index=[f"Scenario {j}" for j in range(self.num_scenarios)])
+                base_temps = base_temperature_df.iloc[i]
+                scenarios_temps_list = []
+                for j in range(self.configs.NUM_SCENARIOS):
+                    scenario_temps = [base_temps[t] * random.uniform(0.90, 1.05) for t in range(len(base_temps))]
+                    scenarios_temps_list.append(scenario_temps)
+
+                site_df = pd.DataFrame(scenarios_temps_list, index=[f"Scenario {j}" for j in range(self.num_scenarios)])
+                # Appending the site with scenario temperatures to the list storig thedataframes
+                scenario_temperatures.append(site_df)
 
         #Concatinating the dataframes for all sites into on multiindex dataframe
         scenario_temperatures_per_site_df = pd.concat([df for df in scenario_temperatures], keys=sites)

@@ -2,10 +2,11 @@ import os
 
 
 class Configs:
-    def __init__(self, scenarios=None, instance=None, algorithm=None, random_scenearios=False) -> None:
+    def __init__(self, scenarios=None, instance=None, algorithm=None, random_scenearios=False, average_values=False) -> None:
         self.ALGORITHMS_LIST = ["B&P w L-SHAPED", "B&P w GUROBI", "MONOLITHIC MODEL"]
         self.INSTANCES = ["SMALL", "MEDIUM", "LARGE", "TEST", "SINGLE_SITE"]
         self.RANDOM_SCENARIOS = random_scenearios
+        self.AVERAGE_VALUES = average_values
         if instance is None:
             self.INSTANCE = self.INSTANCES[self.set_instance()]
         else:

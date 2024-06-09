@@ -59,7 +59,7 @@ class Model:
     def solve_and_print_model(self):
         self.model = gp.Model(f"full_model")
         self.model.setParam("LogFile", f"{self.configs.OUTPUT_DIR}monolithic_log")
-        self.model.setParam('OutputFlag', 0)
+        #self.model.setParam('OutputFlag', 0)
 
         #Declaing variables
         self.declare_variables()
