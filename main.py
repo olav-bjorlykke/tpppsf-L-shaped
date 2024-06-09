@@ -10,6 +10,7 @@ from initialization.sites import Sites
 from l_shaped_algorithm import LShapedAlgorithm
 from data_classes import CGDualVariablesFromMaster
 import logging
+from gurobipy import GRB
 
 
 def run_monolithic_model(configs):
@@ -59,8 +60,7 @@ def run_sensitivity_analysis():
     model.solve_and_print_model()
     expected_value_columns = model.get_columns_from_multisite_solution(0)
 
-
-    for i in range(10):
+    for i in range(100):
         #Creating new scenario
         instance = configs.INSTANCE
         algorithm = configs.ALGORITHM
@@ -74,13 +74,19 @@ def run_sensitivity_analysis():
 
         #Solving for the given scenario with first stage variables locked to the stochastic solution
         model.solve_with_locked_first_stage_vars(stochastic_value_columns, i)
-        stochastic_solution = model.model.objVal
-        stochastic_model_status = model.model.status
+        stochastic_solution = 1
+        stochastic_model_status = "INF"
+        if model.model.status == GRB.OPTIMAL:
+            stochastic_solution = model.model.objVal
+            stochastic_model_status = "OK"
 
         #Solving for the given scenario with first-stage variables locked to the expected value solution
         model.solve_with_locked_first_stage_vars(expected_value_columns, i)
-        expected_value_solution = model.model.objVal
-        expected_value_solution_status = model.model.status
+        expected_value_solution = 1
+        expected_value_solution_status = "INF"
+        if model.model.status == GRB.OPTIMAL:
+            expected_value_solution = model.model.objVal
+            expected_value_solution_status = "OK"
 
         logger.info(f"Iteration {i}: PIS = {perfect_information_solution}, Stochastic Solution = {stochastic_solution}, EV solution = {expected_value_solution},  SS status = {stochastic_model_status}, EV status: {expected_value_solution_status}")
         logger.info(f"Iteration {i}: VSS = {stochastic_solution - expected_value_solution}, VSS percentage = {(stochastic_solution - expected_value_solution)/stochastic_solution}")
@@ -123,7 +129,7 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    run_sensitivity_analysis()
 
 
 
