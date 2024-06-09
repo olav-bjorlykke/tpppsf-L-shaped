@@ -92,6 +92,7 @@ class LShapedAlgorithm:
         new_master_problem_solution = self.master.get_variable_values()
         #Initializes an empyt list for dual variable tracking
         dual_variables = [None for _ in range(self.configs.NUM_SCENARIOS)]
+        multiprocessing.set_start_method('spawn')
         while new_master_problem_solution != old_master_problem_solution:
             iteration_counter += 1
             #Sets the previous solution to be the solution found in the last iteration, before finding a new solution

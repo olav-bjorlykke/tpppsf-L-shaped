@@ -2,12 +2,26 @@ import os
 
 
 class Configs:
-    def __init__(self) -> None:
+    def __init__(self, scenarios=None, instance=None, algorithm=None, random_scenearios=False, average_values=False) -> None:
         self.ALGORITHMS_LIST = ["B&P w L-SHAPED", "B&P w GUROBI", "MONOLITHIC MODEL"]
         self.INSTANCES = ["SMALL", "MEDIUM", "LARGE", "TEST", "SINGLE_SITE"]
-        self.INSTANCE = self.INSTANCES[self.set_instance()]
-        self.NUM_SCENARIOS = self.set_scenarios()
-        self.ALGORITHM = self.set_algorithm()
+        self.RANDOM_SCENARIOS = random_scenearios
+        self.AVERAGE_VALUES = average_values
+        if instance is None:
+            self.INSTANCE = self.INSTANCES[self.set_instance()]
+        else:
+            self.INSTANCE = instance
+
+        if scenarios is None:
+            self.NUM_SCENARIOS = self.set_scenarios()
+        else:
+            self.NUM_SCENARIOS = scenarios
+
+        if algorithm is None:
+            self.ALGORITHM = self.set_algorithm()
+        else:
+            self.ALGORITHM = algorithm
+
         self.OUTPUT_DIR = f"./output/instance_{self.INSTANCE}_scenario_{self.NUM_SCENARIOS}_{self.ALGORITHMS_LIST[self.ALGORITHM].strip()}/"
         self.LOG_DIR = f"{self.OUTPUT_DIR}logs/"
         self.NUM_SMOLT_TYPES = 1
